@@ -165,7 +165,7 @@ export class OutlinePanel {
                 }
 
                 const delta = moveEvent.clientX - this.dragStartX;
-                this.applyWidth(this.dragStartWidth + delta);
+                this.applyWidth(this.dragStartWidth - delta);
             };
 
             const onUp = (upEvent: PointerEvent): void => {

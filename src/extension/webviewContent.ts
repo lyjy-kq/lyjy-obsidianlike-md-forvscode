@@ -163,7 +163,6 @@ body {
     overflow: auto;
     background: var(--vscode-editor-background, #272b33);
     color: var(--vscode-editor-foreground, #d4d4d4);
-    border-left: 1px solid rgba(128, 128, 128, 0.22);
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
@@ -191,7 +190,6 @@ body {
 
 .outline-item {
     margin: 0;
-    border-radius: 10px;
     overflow: hidden;
 }
 
@@ -227,7 +225,6 @@ body {
     min-height: var(--flowmd-line-height, 1.7em);
     padding: 0 10px 0 8px;
     border: none;
-    border-radius: 10px;
     background: var(--outline-accent, rgba(128, 128, 128, 0.08));
     color: inherit;
     cursor: pointer;
