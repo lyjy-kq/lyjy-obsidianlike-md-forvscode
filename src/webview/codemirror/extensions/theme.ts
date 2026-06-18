@@ -260,6 +260,41 @@ export const lightTheme: Extension = EditorView.theme(
             color: '#e51400',
         },
 
+        // Markdown 语义颜色（源码编辑态）
+        '.cm-line .tok-heading, .cm-line .tok-heading1': {
+            color: '#eb8383',
+        },
+        '.cm-line .tok-heading2': {
+            color: '#ae9acb',
+        },
+        '.cm-line .tok-heading3': {
+            color: '#7db5cd',
+        },
+        '.cm-line .tok-heading4': {
+            color: '#71a796',
+        },
+        '.cm-line .tok-heading5': {
+            color: '#dcbf61',
+        },
+        '.cm-line .tok-heading6': {
+            color: '#dda36a',
+        },
+        '.cm-line .tok-strong, .cm-line .tok-strongEmphasis': {
+            color: '#d9a37a',
+            fontWeight: 'inherit',
+        },
+        '.cm-line .tok-emphasis': {
+            color: '#2bbac5',
+        },
+        '.cm-line .tok-link, .cm-line .tok-url': {
+            color: '#b8f5a2',
+            textDecoration: 'underline',
+            textUnderlineOffset: '3px',
+        },
+        '.cm-line .tok-codeText, .cm-line .tok-inlineCode, .cm-line .tok-codeMark': {
+            color: '#f29a9a',
+        },
+
         '.cm-line': {
             padding: '0 4px',
         },
@@ -474,6 +509,41 @@ export const darkTheme: Extension = EditorView.theme(
         },
         '.cm-search-match-count-none': {
             color: '#f48771',
+        },
+
+        // Markdown 语义颜色（源码编辑态）
+        '.cm-line .tok-heading, .cm-line .tok-heading1': {
+            color: '#eb8383',
+        },
+        '.cm-line .tok-heading2': {
+            color: '#ae9acb',
+        },
+        '.cm-line .tok-heading3': {
+            color: '#7db5cd',
+        },
+        '.cm-line .tok-heading4': {
+            color: '#71a796',
+        },
+        '.cm-line .tok-heading5': {
+            color: '#dcbf61',
+        },
+        '.cm-line .tok-heading6': {
+            color: '#dda36a',
+        },
+        '.cm-line .tok-strong, .cm-line .tok-strongEmphasis': {
+            color: '#d9a37a',
+            fontWeight: 'inherit',
+        },
+        '.cm-line .tok-emphasis': {
+            color: '#2bbac5',
+        },
+        '.cm-line .tok-link, .cm-line .tok-url': {
+            color: '#b8f5a2',
+            textDecoration: 'underline',
+            textUnderlineOffset: '3px',
+        },
+        '.cm-line .tok-codeText, .cm-line .tok-inlineCode, .cm-line .tok-codeMark': {
+            color: '#f29a9a',
         },
 
         '.cm-line': {

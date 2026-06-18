@@ -1,109 +1,89 @@
 /**
- * FlowMD Shared Type Definitions
+ * FlowMD 共享类型定义。
  *
- * This module contains all shared type definitions for Extension-Webview communication,
- * editor state management, and extension configuration.
- *
- * @module shared/types
- *
- * Design References:
- * - DES-D-001: postMessage message type definitions
- * - DES-D-002: Extension -> Webview message definitions
- * - DES-D-003: Webview -> Extension message definitions
- * - DES-D-004: Editor state type definitions
- * - DES-D-005: Configuration type definitions
- *
- * Requirements:
- * - REQ-F-001: CustomTextEditorProvider implementation
- * - REQ-F-003: File loading and CodeMirror display
- * - REQ-F-004: CodeMirror edit content file save
- * - REQ-F-005: Bidirectional sync with VS Code editor
- * - REQ-F-008: Dark/Light theme support
- * - REQ-F-009: Large file warning display
- * - REQ-NF-001: Performance requirements
+ * 这个文件集中存放扩展与 Webview 之间的消息类型、编辑器设置类型，
+ * 以及一些通用状态定义，避免各个模块各自维护一份不一致的契约。
  */
 
 // =============================================================================
-// DES-D-001: Base Message Type Definition
+// 基础消息
 // =============================================================================
 
 /**
- * Base interface for all messages exchanged between Extension and Webview.
- * All message types must extend this interface.
+ * 所有消息的基础结构。
  */
 export interface BaseMessage {
-    /** Message type identifier */
+    /** 消息类型标识。 */
     type: string;
 }
 
 // =============================================================================
-// Editor Settings (Extension -> Webview)
+// 编辑器设置
 // =============================================================================
 
 /**
- * Editor settings sent from Extension to Webview.
- * Controls word wrap and readable line length.
+ * 扩展侧传给 Webview 的编辑器设置。
  */
 export interface FlowMdEditorSettings {
-    /** Show line numbers */
+    /** 是否显示行号。 */
     lineNumbers: boolean;
-    /** Enable word wrapping for long lines */
+    /** 是否开启自动换行。 */
     wordWrap: boolean;
-    /** Max content width in px (0 = unlimited) */
+    /** 可读行宽，单位像素，0 表示不限制。 */
     readableLineLength: number;
 }
 
 // =============================================================================
-// DES-D-002: Extension -> Webview Message Definitions
+// 扩展 -> Webview 消息
 // =============================================================================
 
 /**
- * Theme type definition
+ * 主题类型。
  */
 export type ThemeType = 'light' | 'dark';
 
 /**
- * Initialization message sent when the editor starts.
- * Contains the document content, initial theme, and document URI for image path resolution.
+ * 初始化消息。
  */
 export interface InitMessage extends BaseMessage {
-    /** Message type identifier */
+    /** 消息类型。 */
     type: 'init';
-    /** Markdown content of the document */
+    /** Markdown 内容。 */
     content: string;
-    /** Initial theme setting */
+    /** 当前主题。 */
     theme: ThemeType;
-    /** Document URI for resolving relative image paths */
+    /** 当前文档 URI。 */
     documentUri: string;
-    /** Editor settings (word wrap, readable line length) */
+    /** 编辑器设置。 */
     settings?: FlowMdEditorSettings;
+    /** 初始右侧大纲宽度，单位像素。 */
+    outlineWidth?: number;
+    /** 兼容旧版本字段名。 */
+    outlinePanelWidth?: number;
 }
 
 /**
- * Update message sent when document content changes externally.
- * Used to sync changes made outside the Webview (e.g., from VS Code text editor).
+ * 外部更新消息。
  */
 export interface UpdateMessage extends BaseMessage {
-    /** Message type identifier */
+    /** 消息类型。 */
     type: 'update';
-    /** Updated Markdown content */
+    /** 更新后的 Markdown 内容。 */
     content: string;
 }
 
 /**
- * Theme change message sent when VS Code theme changes.
- * Allows the Webview to adapt its appearance to match VS Code.
+ * 主题切换消息。
  */
 export interface ThemeChangeMessage extends BaseMessage {
-    /** Message type identifier */
+    /** 消息类型。 */
     type: 'themeChange';
-    /** New theme setting */
+    /** 新主题。 */
     theme: ThemeType;
 }
 
 /**
- * Union type for all messages from Extension to Webview.
- * Use this type when receiving messages in the Webview.
+ * 扩展 -> Webview 的消息联合类型。
  */
 export type ExtensionToWebviewMessage =
     | InitMessage
@@ -113,184 +93,158 @@ export type ExtensionToWebviewMessage =
     | ImageSaveErrorMessage;
 
 // =============================================================================
-// DES-D-003: Webview -> Extension Message Definitions
+// Webview -> 扩展 消息
 // =============================================================================
 
 /**
- * Content change message sent when user edits content in CodeMirror.
- * The Extension will apply these changes to the TextDocument.
+ * 内容变更消息。
  */
 export interface ContentChangeMessage extends BaseMessage {
-    /** Message type identifier */
+    /** 消息类型。 */
     type: 'contentChange';
-    /** Updated Markdown content from editor */
+    /** 最新 Markdown 内容。 */
     content: string;
 }
 
 /**
- * Ready message sent when Webview initialization is complete.
- * The Extension waits for this message before sending content updates.
+ * Webview 就绪消息。
  */
 export interface ReadyMessage extends BaseMessage {
-    /** Message type identifier */
+    /** 消息类型。 */
     type: 'ready';
 }
 
 /**
- * Error message sent when an error occurs in the Webview.
- * Allows the Extension to display error messages to the user.
+ * 大纲宽度变更消息。
+ */
+export interface OutlineWidthChangeMessage extends BaseMessage {
+    /** 消息类型。 */
+    type: 'outlineWidthChange';
+    /** 当前大纲宽度，单位像素。 */
+    width: number;
+}
+
+/**
+ * 错误消息。
  */
 export interface ErrorMessage extends BaseMessage {
-    /** Message type identifier */
+    /** 消息类型。 */
     type: 'error';
-    /** Error description */
+    /** 错误信息。 */
     message: string;
-    /** Optional error code for categorizing errors (e.g., 'EDITOR_INIT_ERROR', 'SYNC_ERROR') */
+    /** 错误码，可选。 */
     code?: string;
-    /** Optional stack trace for debugging */
+    /** 错误堆栈，可选。 */
     stack?: string;
 }
 
 /**
- * Union type for all messages from Webview to Extension.
- * Use this type when receiving messages in the Extension.
+ * Webview -> 扩展 的消息联合类型。
  */
 export type WebviewToExtensionMessage =
     | ContentChangeMessage
     | ReadyMessage
     | ErrorMessage
+    | OutlineWidthChangeMessage
     | SaveImageMessage;
 
 // =============================================================================
-// DES-D-001: Image Save Message Types (Phase 03A)
+// 图片保存消息
 // =============================================================================
 
 /**
- * Image save request message sent from Webview to Extension.
- * Sent when user drops or pastes an image into the editor.
- *
- * Requirements:
- * - REQ-3A-001: Image drag & drop
- * - REQ-3A-002: Clipboard image paste
+ * 保存图片请求消息。
  */
 export interface SaveImageMessage extends BaseMessage {
-    /** Message type identifier */
+    /** 消息类型。 */
     type: 'saveImage';
-    /** Base64-encoded image data (data:image/xxx;base64,... format) */
+    /** Base64 图片数据。 */
     data: string;
-    /** Original file name (D&D) or timestamp-based name (paste) */
+    /** 文件名。 */
     fileName: string;
 }
 
 /**
- * Image saved success response message sent from Extension to Webview.
- * Contains the relative path to use in Markdown image syntax.
- *
- * Requirements:
- * - REQ-3A-001: Image drag & drop
- * - REQ-3A-002: Clipboard image paste
+ * 图片保存成功消息。
  */
 export interface ImageSavedMessage extends BaseMessage {
-    /** Message type identifier */
+    /** 消息类型。 */
     type: 'imageSaved';
-    /** Relative path from .md file (e.g., 'images/screenshot.png') */
+    /** 图片相对路径。 */
     relativePath: string;
-    /** Final saved file name (may include sequence number) */
+    /** 最终文件名。 */
     fileName: string;
 }
 
 /**
- * Image save error response message sent from Extension to Webview.
- * Sent when image saving fails due to write errors, validation failures, etc.
- *
- * Requirements:
- * - REQ-3A-001: Image drag & drop
- * - REQ-3A-002: Clipboard image paste
+ * 图片保存失败消息。
  */
 export interface ImageSaveErrorMessage extends BaseMessage {
-    /** Message type identifier */
+    /** 消息类型。 */
     type: 'imageSaveError';
-    /** Error description */
+    /** 错误信息。 */
     error: string;
 }
 
 // =============================================================================
-// DES-D-004: Editor State Type Definitions
+// 编辑器状态
 // =============================================================================
 
 /**
- * Update source identifier.
- * Used to track whether the last update came from the Extension or Webview.
+ * 更新来源。
  */
 export type UpdateSource = 'extension' | 'webview' | null;
 
 /**
- * Editor state interface.
- * Tracks the current state of the editor including readiness, dirty flag,
- * and content synchronization status.
- *
- * Requirements:
- * - REQ-F-001: CustomTextEditorProvider implementation
- * - REQ-F-005: Bidirectional sync with VS Code editor
+ * 编辑器状态。
  */
 export interface EditorState {
-    /** Indicates whether the Webview has completed initialization */
+    /** 是否已经就绪。 */
     isReady: boolean;
-    /** Indicates whether there are unsaved changes */
+    /** 是否有未保存修改。 */
     isDirty: boolean;
-    /** The content that was last synchronized between Extension and Webview */
+    /** 最近一次同步的内容。 */
     lastSyncedContent: string;
-    /** Content waiting to be applied (null if no pending update) */
+    /** 等待应用的更新内容。 */
     pendingUpdate: string | null;
 }
 
 /**
- * Synchronization state interface.
- * Manages the state of bidirectional synchronization to prevent update loops
- * and race conditions.
- *
- * Requirements:
- * - REQ-F-005: Bidirectional sync with VS Code editor
+ * 同步状态。
  */
 export interface SyncState {
-    /** True when Extension is actively sending updates to Webview */
+    /** 扩展是否正在向 Webview 推送更新。 */
     isExtensionUpdating: boolean;
-    /** True when Webview is actively sending updates to Extension */
+    /** Webview 是否正在向扩展推送更新。 */
     isWebviewUpdating: boolean;
-    /** The source of the most recent update (for conflict resolution) */
+    /** 最近一次更新来源。 */
     lastUpdateSource: UpdateSource;
 }
 
 // =============================================================================
-// DES-D-005: Configuration Type Definitions
+// 配置
 // =============================================================================
 
 /**
- * FlowMD extension configuration interface.
- * Contains all configurable settings for the extension.
- *
- * Requirements:
- * - REQ-F-009: Large file warning display
- * - REQ-NF-001: Performance requirements
+ * FlowMD 配置。
  */
 export interface FlowMdConfiguration {
-    /** Large file warning threshold in bytes (default: 1MB) */
+    /** 大文件阈值，单位字节。 */
     largeFileThreshold: number;
-    /** Debounce delay for content synchronization in milliseconds (default: 300ms) */
+    /** 内容同步防抖时间，单位毫秒。 */
     debounceDelay: number;
-    /** Enable debug mode for verbose logging */
+    /** 是否启用调试日志。 */
     debug: boolean;
 }
 
 /**
- * Default configuration values for FlowMD.
- * These values are used when no user configuration is provided.
+ * 默认配置。
  */
 export const DEFAULT_CONFIG: FlowMdConfiguration = {
-    /** 1MB threshold for large file warning */
+    /** 默认阈值：1MB。 */
     largeFileThreshold: 1 * 1024 * 1024,
-    /** 300ms debounce delay for content sync */
+    /** 默认防抖：300ms。 */
     debounceDelay: 300,
-    /** Debug mode disabled by default */
+    /** 默认关闭调试。 */
     debug: false,
 };

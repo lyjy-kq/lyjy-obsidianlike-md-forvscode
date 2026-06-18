@@ -95,7 +95,8 @@ export interface IWebviewMessageCallbacks {
         theme: ThemeType,
         documentUri: string,
         settings?: FlowMdEditorSettings,
-        mode?: 'live' | 'viewer' | 'source'
+        mode?: 'live' | 'viewer' | 'source',
+        outlineWidth?: number
     ) => void;
 
     /**
@@ -332,13 +333,16 @@ export class WebviewMessageHandler {
         documentUri: string;
         settings?: FlowMdEditorSettings;
         mode?: 'live' | 'viewer' | 'source';
+        outlineWidth?: number;
+        outlinePanelWidth?: number;
     }): void {
         this.callbacks.onInit(
             message.content,
             message.theme,
             message.documentUri,
             message.settings,
-            message.mode
+            message.mode,
+            message.outlineWidth ?? message.outlinePanelWidth
         );
     }
 

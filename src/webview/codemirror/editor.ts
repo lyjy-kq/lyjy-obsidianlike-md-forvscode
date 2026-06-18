@@ -638,6 +638,26 @@ export class CodeMirrorEditor {
     }
 
     /**
+     * 将编辑器滚动到指定行。
+     *
+     * 该方法用于大纲面板点击标题后的跳转定位。
+     *
+     * @param lineNumber - 目标行号，从 1 开始
+     */
+    scrollToLine(lineNumber: number): void {
+        if (!this.view) return;
+        if (!Number.isFinite(lineNumber) || lineNumber < 1) return;
+
+        const line = Math.min(this.view.state.doc.lines, Math.floor(lineNumber));
+        const target = this.view.state.doc.line(line);
+        this.view.dispatch({
+            selection: { anchor: target.from },
+            effects: EditorView.scrollIntoView(target.from, { y: 'start' }),
+        });
+        this.view.focus();
+    }
+
+    /**
      * Sets the editor's editable state.
      *
      * When set to false, the editor becomes read-only (viewer mode).

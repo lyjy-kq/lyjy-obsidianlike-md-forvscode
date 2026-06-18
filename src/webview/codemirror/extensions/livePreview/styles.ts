@@ -47,33 +47,33 @@ export function createBaseThemeStyles(): Extension {
             fontSize: '1.8em',
             fontWeight: '700',
             letterSpacing: '-0.02em',
-            color: 'inherit',
+            color: '#eb8383',
         },
         '.cm-md-heading-2': {
             fontSize: '1.5em',
             fontWeight: '600',
             letterSpacing: '-0.01em',
-            color: 'inherit',
+            color: '#ae9acb',
         },
         '.cm-md-heading-3': {
             fontSize: '1.25em',
             fontWeight: '600',
-            color: 'inherit',
+            color: '#7db5cd',
         },
         '.cm-md-heading-4': {
             fontSize: '1.1em',
             fontWeight: '600',
-            color: 'inherit',
+            color: '#71a796',
         },
         '.cm-md-heading-5': {
             fontSize: '1em',
             fontWeight: '600',
-            color: 'inherit',
+            color: '#dcbf61',
         },
         '.cm-md-heading-6': {
             fontSize: '0.9em',
             fontWeight: '600',
-            color: 'inherit',
+            color: '#dda36a',
             textTransform: 'uppercase',
             letterSpacing: '0.05em',
         },
@@ -83,9 +83,11 @@ export function createBaseThemeStyles(): Extension {
         // =================================================================
         '.cm-md-bold': {
             fontWeight: '700',
+            color: '#d9a37a',
         },
         '.cm-md-italic': {
             fontStyle: 'italic',
+            color: '#2bbac5',
         },
         '.cm-md-strikethrough': {
             textDecoration: 'line-through',
@@ -103,19 +105,20 @@ export function createBaseThemeStyles(): Extension {
             backgroundColor: '#30353f',
             padding: '2px 6px',
             borderRadius: '4px',
-            color: 'inherit',
+            color: '#f29a9a',
         },
         '&light .cm-md-code': {
             backgroundColor: '#eff1f3',
+            color: '#f29a9a',
         },
 
         // =================================================================
         // Links
         // =================================================================
         '.cm-md-link': {
-            color: '#4fc1ff',
+            color: '#b8f5a2',
             textDecoration: 'underline',
-            textDecorationColor: '#4fc1ff',
+            textDecorationColor: '#b8f5a2',
             textDecorationSkipInk: 'auto',
             textUnderlineOffset: '3px',
             cursor: 'pointer',
@@ -125,8 +128,8 @@ export function createBaseThemeStyles(): Extension {
             opacity: '0.8',
         },
         '&light .cm-md-link': {
-            color: '#0969da',
-            textDecorationColor: '#0969da',
+            color: '#b8f5a2',
+            textDecorationColor: '#b8f5a2',
         },
 
         // =================================================================

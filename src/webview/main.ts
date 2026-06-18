@@ -42,6 +42,7 @@ import {
 } from './codemirror/extensions/livePreview/state.js';
 import { WebviewMessageSender, WebviewMessageHandler } from './messageHandler.js';
 import { WebviewThemeManager } from './theme.js';
+import { OutlinePanel } from './outlinePanel.js';
 import {
     setupImageDropHandler,
     createImagePasteHandler,
@@ -49,6 +50,7 @@ import {
     handleImageSaveError,
 } from './imageDropHandler.js';
 import type { ThemeType, FlowMdEditorSettings } from '../shared/types.js';
+import { MESSAGE_TYPES } from '../shared/messageTypes.js';
 
 // =============================================================================
 // Type Declarations for VS Code Webview API
@@ -160,6 +162,12 @@ let editor: CodeMirrorEditor | null = null;
 let themeManager: WebviewThemeManager | null = null;
 
 /**
+ * 右侧大纲管理器实例。
+ * 负责布局、标题树渲染、分隔条拖拽与跳转交互。
+ */
+let outlinePanel: OutlinePanel | null = null;
+
+/**
  * Current document URI for image path resolution.
  * Note: Used by imageHandler integration for local image URL transformation.
  */
@@ -207,6 +215,40 @@ export function getEditor(): CodeMirrorEditor | null {
  */
 export function getThemeManager(): WebviewThemeManager | null {
     return themeManager;
+}
+
+/**
+ * 获取或创建编辑器宿主容器。
+ *
+ * @returns 编辑器宿主 DOM 节点。
+ */
+function getOrCreateEditorHost(): HTMLElement {
+    let container = document.getElementById('editor');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'editor';
+        document.body.appendChild(container);
+    }
+    return container;
+}
+
+/**
+ * 获取右侧大纲面板的初始宽度。
+ *
+ * 优先读取 HTML 注入的 CSS 变量，这样页面首次渲染时就能直接使用
+ * 扩展端保存的宽度；如果读取失败，则回退到默认值。
+ *
+ * @returns 右侧大纲面板初始宽度，单位像素
+ */
+function getInitialOutlineWidth(): number {
+    const rawWidth = getComputedStyle(document.documentElement).getPropertyValue(
+        '--flowmd-outline-width'
+    );
+    const parsedWidth = Number.parseFloat(rawWidth);
+    if (!Number.isFinite(parsedWidth) || parsedWidth <= 0) {
+        return 280;
+    }
+    return Math.round(parsedWidth);
 }
 
 // =============================================================================
@@ -257,7 +299,8 @@ async function handleInit(
     theme: ThemeType,
     documentUri: string,
     settings?: FlowMdEditorSettings,
-    mode?: 'live' | 'viewer' | 'source'
+    mode?: 'live' | 'viewer' | 'source',
+    outlineWidth?: number
 ): Promise<void> {
     sendLog('INFO', `INIT received: contentLength=${content.length}, theme=${theme}`);
 
@@ -265,13 +308,13 @@ async function handleInit(
         // Store document URI for image path resolution
         currentDocumentUri = documentUri;
 
-        // Get or create the editor container
-        let container = document.getElementById('editor');
-        if (!container) {
-            container = document.createElement('div');
-            container.id = 'editor';
-            document.body.appendChild(container);
+        // Make sure the right-side outline starts at the saved width.
+        if (Number.isFinite(outlineWidth ?? NaN)) {
+            outlinePanel?.setWidth(outlineWidth as number);
         }
+
+        // Get or create the editor container
+        const container = getOrCreateEditorHost();
 
         // Destroy existing editor if any
         if (editor) {
@@ -287,8 +330,15 @@ async function handleInit(
 
         // Register change callback to send updates to Extension (debounced)
         editor.onChange((newContent: string) => {
+            outlinePanel?.setContent(newContent);
             debouncedSendContentChange(newContent);
         });
+
+        // Keep the outline aligned with the freshly loaded Markdown document
+        outlinePanel?.setContent(content);
+        if (Number.isFinite(outlineWidth ?? NaN)) {
+            outlinePanel?.setWidth(outlineWidth as number);
+        }
 
         // Apply initial theme using ThemeManager (for CSS classes)
         if (!themeManager) {
@@ -363,6 +413,7 @@ function handleUpdate(content: string): void {
         console.debug(`[FlowMD] handleUpdate: calling setContent...`);
         // setContent() does NOT trigger onChange (feedback loop prevention)
         editor.setContent(content);
+        outlinePanel?.setContent(content);
         sendLog('DEBUG', 'UPDATE applied successfully');
         console.debug(`[FlowMD] handleUpdate: setContent completed`);
         // Stop reload spinner if it was active
@@ -428,6 +479,27 @@ function handleThemeChange(theme: ThemeType): void {
 function initialize(): void {
     sendLog('INFO', 'Webview initializing...');
 
+    // 右侧大纲面板直接复用 HTML 里准备好的壳子，只负责渲染和交互。
+    const panelEl = document.getElementById('outline-pane');
+    const contentEl = document.getElementById('outline-content');
+    const resizerEl = document.getElementById('outline-resizer');
+    if (panelEl && contentEl && resizerEl) {
+        outlinePanel = new OutlinePanel(panelEl, contentEl, resizerEl, {
+            initialWidth: getInitialOutlineWidth(),
+            onWidthChange: (width: number) => {
+                vscode.postMessage({
+                    type: MESSAGE_TYPES.OUTLINE_WIDTH_CHANGE,
+                    width,
+                });
+            },
+            onNavigateToLine: (line: number) => {
+                editor?.scrollToLine(line);
+            },
+        });
+    } else {
+        sendLog('ERROR', 'Outline panel DOM is missing, right-side outline is unavailable');
+    }
+
     // Capture documentBaseUri and handle viewerMode from raw messages
     window.addEventListener('message', (event: MessageEvent) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -482,9 +554,10 @@ function initialize(): void {
             theme: ThemeType,
             documentUri: string,
             settings?: FlowMdEditorSettings,
-            mode?: 'live' | 'viewer' | 'source'
+            mode?: 'live' | 'viewer' | 'source',
+            outlineWidth?: number
         ): void => {
-            void handleInit(content, theme, documentUri, settings, mode);
+            void handleInit(content, theme, documentUri, settings, mode, outlineWidth);
         },
         onUpdate: handleUpdate,
         onThemeChange: handleThemeChange,

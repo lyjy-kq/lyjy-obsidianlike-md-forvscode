@@ -21,7 +21,11 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import type { WebviewToExtensionMessage, ThemeType } from '../shared/types.js';
+import type {
+    OutlineWidthChangeMessage,
+    WebviewToExtensionMessage,
+    ThemeType,
+} from '../shared/types.js';
 import { MESSAGE_TYPES } from '../shared/messageTypes.js';
 import { checkFileSize, openWithTextEditor } from './fileSizeChecker.js';
 import { getHtmlForWebview } from './webviewContent.js';
@@ -38,6 +42,14 @@ import { handleSaveImage } from './imageSaveHandler.js';
  * Must match the viewType in package.json contributes.customEditors.
  */
 export const VIEW_TYPE = 'flowMd.editor';
+
+/**
+ * 澶х翰闈㈡澘瀹藉害鍦ㄦ墿灞曞叏灞€瀛樺偍涓殑閿悕銆? * 鐢ㄤ簬鍦?VS Code 閲嶅惎鍚庢仮澶嶇敤鎴蜂笂涓€娆¤皟鏁寸殑瀹藉害銆? */
+const OUTLINE_PANEL_WIDTH_STORAGE_KEY = 'flowMd.outlineWidth';
+
+/**
+ * 澶х翰闈㈡澘瀹藉害鐨勯粯璁ゅ€笺€? * 褰撳瓨鍌ㄧ己澶辨垨鍊奸潪娉曟椂浣跨敤銆? */
+const DEFAULT_OUTLINE_PANEL_WIDTH = 280;
 
 // =============================================================================
 // Helper Functions
@@ -63,6 +75,30 @@ function getThemeType(): ThemeType {
         default:
             return 'dark';
     }
+}
+
+/**
+ * 浠庢墿灞曞叏灞€瀛樺偍涓鍙栧ぇ绾查潰鏉垮搴︺€? *
+ * @param context - 鎵╁睍涓婁笅鏂囷紝鐢ㄤ簬璁块棶 workspaceState
+ * @returns 澶х翰闈㈡澘瀹藉害锛屽崟浣嶄负鍍忕礌
+ */
+function getSavedOutlinePanelWidth(context: vscode.ExtensionContext): number {
+    const raw = context.workspaceState.get<number>(OUTLINE_PANEL_WIDTH_STORAGE_KEY);
+    if (typeof raw !== 'number' || !Number.isFinite(raw)) {
+        return DEFAULT_OUTLINE_PANEL_WIDTH;
+    }
+    return Math.min(480, Math.max(220, Math.round(raw)));
+}
+
+/**
+ * 瑙勮寖鍖栧ぇ绾查潰鏉垮搴︼紝闃叉寮傚父鍊煎啓鍏ュ瓨鍌ㄣ€? *
+ * @param width - Webview 涓婃姤鐨勫搴? * @returns 缁忚繃瑁佸壀鍚庣殑鏈夋晥瀹藉害
+ */
+function normalizeOutlinePanelWidth(width: number): number {
+    if (!Number.isFinite(width)) {
+        return DEFAULT_OUTLINE_PANEL_WIDTH;
+    }
+    return Math.min(480, Math.max(220, Math.round(width)));
 }
 
 // =============================================================================
@@ -93,7 +129,7 @@ export class FlowMdEditorProvider implements vscode.CustomTextEditorProvider {
 
     /**
      * Sets the editor mode for the active FlowMD editor.
-     * Cycles through: live → viewer → source → live
+     * Cycles through: live 鈫?viewer 鈫?source 鈫?live
      *
      * @param mode - The target mode ('live' | 'viewer' | 'source')
      */
@@ -185,7 +221,7 @@ export class FlowMdEditorProvider implements vscode.CustomTextEditorProvider {
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             Logger.error(`Image insert failed: ${errorMessage}`);
-            vscode.window.showErrorMessage(`画像の挿入に失敗しました: ${errorMessage}`);
+            vscode.window.showErrorMessage(`鐢诲儚銇尶鍏ャ伀澶辨晽銇椼伨銇椼仧: ${errorMessage}`);
         }
     }
 
@@ -238,7 +274,7 @@ export class FlowMdEditorProvider implements vscode.CustomTextEditorProvider {
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             Logger.error(`Image insert from Explorer failed: ${errorMessage}`);
-            vscode.window.showErrorMessage(`画像の挿入に失敗しました: ${errorMessage}`);
+            vscode.window.showErrorMessage(`鐢诲儚銇尶鍏ャ伀澶辨晽銇椼伨銇椼仧: ${errorMessage}`);
         }
     }
 
@@ -315,7 +351,8 @@ export class FlowMdEditorProvider implements vscode.CustomTextEditorProvider {
         // =================================================================
         webviewPanel.webview.html = getHtmlForWebview(
             webviewPanel.webview,
-            this.context.extensionUri
+            this.context.extensionUri,
+            getSavedOutlinePanelWidth(this.context)
         );
 
         // =================================================================
@@ -565,6 +602,7 @@ export class FlowMdEditorProvider implements vscode.CustomTextEditorProvider {
                 const docDirWebviewUri = webviewPanel.webview
                     .asWebviewUri(vscode.Uri.file(docDir))
                     .toString();
+                const outlineWidth = getSavedOutlinePanelWidth(this.context);
 
                 await webviewPanel.webview.postMessage({
                     type: MESSAGE_TYPES.INIT,
@@ -574,6 +612,7 @@ export class FlowMdEditorProvider implements vscode.CustomTextEditorProvider {
                     documentBaseUri: docDirWebviewUri,
                     settings: ConfigManager.getEditorSettings(),
                     mode: ConfigManager.getDefaultMode(),
+                    outlineWidth,
                 });
                 Logger.debug(
                     `INIT message sent successfully (mode=${ConfigManager.getDefaultMode()})`
@@ -615,6 +654,15 @@ export class FlowMdEditorProvider implements vscode.CustomTextEditorProvider {
                 await vscode.window.showErrorMessage(`FlowMD: ${message.message}`);
                 break;
 
+            // 处理来自 Webview 的大纲面板宽度更新消息。
+            case MESSAGE_TYPES.OUTLINE_WIDTH_CHANGE as typeof MESSAGE_TYPES.READY: {
+                const outlineMsg = message as OutlineWidthChangeMessage;
+                const width = normalizeOutlinePanelWidth(outlineMsg.width);
+                await this.context.workspaceState.update(OUTLINE_PANEL_WIDTH_STORAGE_KEY, width);
+                Logger.debug(`Outline panel width saved: ${width}px`);
+                break;
+            }
+
             // Handle clipboard write from webview (table cell copy etc.)
             case 'copyToClipboard' as typeof MESSAGE_TYPES.READY: {
                 const clipMsg = message as unknown as { text: string };
@@ -640,7 +688,7 @@ export class FlowMdEditorProvider implements vscode.CustomTextEditorProvider {
                 const fileMsg = message as unknown as { path: string };
                 if (fileMsg.path) {
                     const docDir = path.dirname(document.uri.fsPath);
-                    // Strip anchor fragment from path (e.g., "file.md#heading" → "file.md")
+                    // Strip anchor fragment from path (e.g., "file.md#heading" 鈫?"file.md")
                     const filePath = fileMsg.path.split('#')[0];
                     const resolvedPath = path.resolve(docDir, filePath);
                     Logger.info(`Opening file: ${resolvedPath}`);
@@ -667,13 +715,12 @@ export class FlowMdEditorProvider implements vscode.CustomTextEditorProvider {
             // Handle reload content request (re-read file from disk)
             case MESSAGE_TYPES.RELOAD_CONTENT as typeof MESSAGE_TYPES.READY: {
                 Logger.info('Reload content requested from Webview');
-                // revertを確実に完了させてからwebviewへ最新コンテンツを送る。
-                // onDidChangeTextDocumentは外部変更が既にTextDocumentに反映済みの
-                // 場合は発火しないため、ここで明示的に送信する。
+                // 先执行 revert，再把最新的文档内容回推给 Webview。
+                // onDidChangeTextDocument 会先触发，所以这里直接重新发送当前内容。
                 try {
                     await vscode.commands.executeCommand('workbench.action.files.revert');
                 } catch {
-                    // revert失敗は無視（TextDocumentの現在の内容を送る）
+                    // 忽略 revert 失败，继续把当前 TextDocument 内容同步给 Webview。
                 }
                 await webviewPanel.webview.postMessage({
                     type: MESSAGE_TYPES.UPDATE,

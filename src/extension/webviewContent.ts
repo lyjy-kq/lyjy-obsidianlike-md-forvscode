@@ -94,6 +94,20 @@ body {
     overflow: hidden;
 }
 
+#app-shell {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: row;
+    overflow: hidden;
+}
+
+#editor-pane {
+    flex: 1 1 auto;
+    min-width: 0;
+    position: relative;
+}
+
 #editor {
     width: 100%;
     height: 100vh;
@@ -115,10 +129,185 @@ body {
     overflow: auto;
 }
 
+#outline-resizer {
+    width: 6px;
+    flex: 0 0 6px;
+    cursor: col-resize;
+    background: transparent;
+    position: relative;
+    z-index: 5;
+}
+
+#outline-resizer::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 1px;
+    transform: translateX(-50%);
+    background: rgba(128, 128, 128, 0.22);
+    transition: background-color 0.15s ease;
+}
+
+#outline-resizer:hover::before,
+#outline-resizer[data-dragging="true"]::before {
+    background: rgba(79, 193, 255, 0.65);
+}
+
+#outline-pane {
+    width: var(--flowmd-outline-width, 280px);
+    min-width: 220px;
+    max-width: 480px;
+    height: 100vh;
+    overflow: auto;
+    background: var(--vscode-editor-background, #272b33);
+    color: var(--vscode-editor-foreground, #d4d4d4);
+    border-left: 1px solid rgba(128, 128, 128, 0.22);
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+
+.outline-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 14px 10px;
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--vscode-descriptionForeground, #999);
+    border-bottom: 1px solid rgba(128, 128, 128, 0.14);
+    position: sticky;
+    top: 0;
+    background: inherit;
+    z-index: 1;
+}
+
+.outline-header-badge {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(128, 128, 128, 0.12);
+    color: inherit;
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    text-transform: none;
+}
+
+#outline-content {
+    padding: 12px 10px 16px;
+}
+
+.outline-empty {
+    padding: 12px 8px;
+    color: var(--vscode-descriptionForeground, #999);
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.outline-tree,
+.outline-tree ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.outline-item {
+    margin: 2px 0;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.outline-item[data-level="1"] {
+    --outline-accent: rgba(79, 193, 255, 0.18);
+}
+
+.outline-item[data-level="2"] {
+    --outline-accent: rgba(61, 220, 151, 0.16);
+}
+
+.outline-item[data-level="3"] {
+    --outline-accent: rgba(255, 199, 95, 0.16);
+}
+
+.outline-item[data-level="4"] {
+    --outline-accent: rgba(194, 132, 255, 0.16);
+}
+
+.outline-item[data-level="5"] {
+    --outline-accent: rgba(255, 137, 95, 0.16);
+}
+
+.outline-item[data-level="6"] {
+    --outline-accent: rgba(158, 174, 255, 0.16);
+}
+
+.outline-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 30px;
+    padding: 5px 10px 5px 8px;
+    border: none;
+    border-radius: 10px;
+    background: var(--outline-accent, rgba(128, 128, 128, 0.08));
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+    transition: background-color 0.15s ease, transform 0.15s ease, color 0.15s ease;
+}
+
+.outline-row:hover {
+    background: rgba(79, 193, 255, 0.18);
+}
+
+.outline-row[data-active="true"] {
+    background: rgba(79, 193, 255, 0.26);
+    color: var(--vscode-editor-foreground, #d4d4d4);
+}
+
+.outline-toggle {
+    width: 16px;
+    flex: 0 0 16px;
+    font-size: 11px;
+    line-height: 1;
+    text-align: center;
+    color: var(--vscode-focusBorder, #4fc1ff);
+    user-select: none;
+}
+
+.outline-toggle[data-collapsed="true"] {
+    color: var(--vscode-descriptionForeground, #999);
+}
+
+.outline-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    line-height: 1.45;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.outline-meta {
+    flex: 0 0 auto;
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground, #999);
+}
+
+.outline-children {
+    margin-left: 14px;
+    padding-left: 10px;
+    border-left: 1px solid rgba(128, 128, 128, 0.16);
+}
+
 /* Scroll jump buttons */
 .scroll-jump-container {
     position: fixed;
-    right: 24px;
+    right: calc(var(--flowmd-outline-width, 280px) + 24px);
     bottom: 24px;
     display: flex;
     flex-direction: column;
@@ -249,12 +438,17 @@ function getEditorLineHeightCss(): string {
  *
  * @param webview - The VS Code Webview instance
  * @param extensionUri - The URI of the extension's root directory
+ * @param outlineWidth - Saved width of the outline panel in pixels
  * @returns Complete HTML string for the Webview
  *
  * Design Reference: DES-S-001, DES-F-002
  * Requirements: REQ-NF-002, REQ-F-008
  */
-export function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri): string {
+export function getHtmlForWebview(
+    webview: vscode.Webview,
+    extensionUri: vscode.Uri,
+    outlineWidth: number = 280
+): string {
     // Generate script URI for webview.js (contains CodeMirror initialization)
     const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'dist', 'webview.js'));
 
@@ -275,10 +469,11 @@ export function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.
     // 1.7em).
     const fontWeight = getEditorFontWeightCss();
     const lineHeight = getEditorLineHeightCss();
+    const safeOutlineWidth = Number.isFinite(outlineWidth) && outlineWidth > 0 ? outlineWidth : 280;
 
     // Return the complete HTML document
     // Note: Script tag does not use nonce - CSP uses cspSource instead (DES-S-001)
-return `<!DOCTYPE html>
+    return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -290,18 +485,34 @@ return `<!DOCTYPE html>
         --flowmd-line-height: ${lineHeight};
         --flowmd-font-scale: 1;
         --flowmd-editor-font-size: var(--vscode-editor-font-size, 14px);
+        --flowmd-outline-width: ${safeOutlineWidth}px;
     }</style>
     <style>
 ${styles}
     </style>
 </head>
 <body>
-    <div id="editor"></div>
-    <div class="scroll-jump-container">
-        <button class="scroll-jump-btn" id="reload-content" title="Reload from disk"><span class="btn-icon">&#8635;</span></button>
-        <button class="scroll-jump-btn" id="scroll-top" title="Scroll to top">&#9650;</button>
-        <button class="scroll-jump-btn" id="scroll-bottom" title="Scroll to bottom">&#9660;</button>
+    <div id="app-shell">
+        <div id="editor-pane">
+            <div id="editor"></div>
+        </div>
+        <div id="outline-resizer" role="separator" aria-orientation="vertical" aria-label="Resize outline panel"></div>
+        <aside id="outline-pane" aria-label="Markdown outline">
+            <div class="outline-header">
+                <span>Outline</span>
+                <span class="outline-header-badge" id="outline-count">0 items</span>
+            </div>
+            <div id="outline-content">
+                <div class="outline-empty">标题大纲会在这里显示。</div>
+            </div>
+        </aside>
     </div>
+    
+    // <div class="scroll-jump-container">
+    //     <button class="scroll-jump-btn" id="reload-content" title="Reload from disk"><span class="btn-icon">&#8635;</span></button>
+    //     <button class="scroll-jump-btn" id="scroll-top" title="Scroll to top">&#9650;</button>
+    //     <button class="scroll-jump-btn" id="scroll-bottom" title="Scroll to bottom">&#9660;</button>
+    // </div>
     <script src="${scriptUriString}"></script>
 </body>
 </html>`;
