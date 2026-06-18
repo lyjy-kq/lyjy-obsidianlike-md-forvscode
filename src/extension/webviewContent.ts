@@ -169,7 +169,7 @@ body {
 }
 
 #outline-content {
-    padding: 10px 10px 16px;
+    padding: 0 8px 12px 0;
     font-size: var(--vscode-editor-font-size, 14px);
     line-height: var(--flowmd-line-height, 1.7em);
 }
@@ -194,27 +194,27 @@ body {
 }
 
 .outline-item[data-level="1"] {
-    --outline-accent: rgba(79, 193, 255, 0.18);
+    --outline-accent: rgba(235, 131, 131, 0.15);
 }
 
 .outline-item[data-level="2"] {
-    --outline-accent: rgba(61, 220, 151, 0.16);
+    --outline-accent: rgba(174, 154, 203, 0.15);
 }
 
 .outline-item[data-level="3"] {
-    --outline-accent: rgba(255, 199, 95, 0.16);
+    --outline-accent: rgba(125, 181, 205, 0.15);
 }
 
 .outline-item[data-level="4"] {
-    --outline-accent: rgba(194, 132, 255, 0.16);
+    --outline-accent: rgba(113, 167, 150, 0.15);
 }
 
 .outline-item[data-level="5"] {
-    --outline-accent: rgba(255, 137, 95, 0.16);
+    --outline-accent: rgba(220, 191, 97, 0.15);
 }
 
 .outline-item[data-level="6"] {
-    --outline-accent: rgba(158, 174, 255, 0.16);
+    --outline-accent: rgba(221, 163, 106, 0.15);
 }
 
 .outline-row {
@@ -223,7 +223,7 @@ body {
     gap: 8px;
     width: 100%;
     min-height: var(--flowmd-line-height, 1.7em);
-    padding: 0 10px 0 8px;
+    padding: 0 10px 0 0;
     border: none;
     background: var(--outline-accent, rgba(128, 128, 128, 0.08));
     color: inherit;
