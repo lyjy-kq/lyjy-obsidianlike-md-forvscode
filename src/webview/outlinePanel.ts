@@ -46,9 +46,6 @@ export class OutlinePanel {
     /** 可拖拽分隔条。 */
     private readonly resizerEl: HTMLElement;
 
-    /** 大纲数量徽标。 */
-    private readonly countEl: HTMLElement | null;
-
     /** 宽度变化回调。 */
     private readonly onWidthChange: (width: number) => void;
 
@@ -110,7 +107,6 @@ export class OutlinePanel {
         this.panelEl = panelEl;
         this.contentEl = contentEl;
         this.resizerEl = resizerEl;
-        this.countEl = this.panelEl.querySelector('#outline-count');
         this.onWidthChange = options.onWidthChange;
         this.onNavigateToLine = options.onNavigateToLine;
         this.width = this.clampWidth(options.initialWidth);
@@ -451,11 +447,6 @@ export class OutlinePanel {
      * @returns void
      */
     private render(): void {
-        const totalCount = this.countNodes(this.nodes);
-        if (this.countEl) {
-            this.countEl.textContent = `${totalCount} items`;
-        }
-
         if (this.nodes.length === 0) {
             this.contentEl.innerHTML = '<div class="outline-empty">未检测到标题</div>';
             this.panelEl.classList.add('is-empty');
@@ -563,10 +554,6 @@ export class OutlinePanel {
      * @param nodes - 节点列表
      * @returns 节点总数
      */
-    private countNodes(nodes: OutlineNode[]): number {
-        return nodes.reduce((count, node) => count + 1 + this.countNodes(node.children), 0);
-    }
-
     /**
      * 转义 HTML 文本，避免标题内容破坏结构。
      *

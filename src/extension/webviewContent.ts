@@ -169,42 +169,17 @@ body {
     flex-direction: column;
 }
 
-.outline-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 14px 14px 10px;
-    font-size: 12px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--vscode-descriptionForeground, #999);
-    border-bottom: 1px solid rgba(128, 128, 128, 0.14);
-    position: sticky;
-    top: 0;
-    background: inherit;
-    z-index: 1;
-}
-
-.outline-header-badge {
-    padding: 2px 8px;
-    border-radius: 999px;
-    background: rgba(128, 128, 128, 0.12);
-    color: inherit;
-    font-size: 11px;
-    letter-spacing: 0.02em;
-    text-transform: none;
-}
-
 #outline-content {
-    padding: 12px 10px 16px;
+    padding: 10px 10px 16px;
+    font-size: var(--vscode-editor-font-size, 14px);
+    line-height: var(--flowmd-line-height, 1.7em);
 }
 
 .outline-empty {
     padding: 12px 8px;
     color: var(--vscode-descriptionForeground, #999);
-    font-size: 13px;
-    line-height: 1.6;
+    font-size: inherit;
+    line-height: inherit;
 }
 
 .outline-tree,
@@ -215,7 +190,7 @@ body {
 }
 
 .outline-item {
-    margin: 2px 0;
+    margin: 0;
     border-radius: 10px;
     overflow: hidden;
 }
@@ -249,14 +224,16 @@ body {
     align-items: center;
     gap: 8px;
     width: 100%;
-    min-height: 30px;
-    padding: 5px 10px 5px 8px;
+    min-height: var(--flowmd-line-height, 1.7em);
+    padding: 0 10px 0 8px;
     border: none;
     border-radius: 10px;
     background: var(--outline-accent, rgba(128, 128, 128, 0.08));
     color: inherit;
     cursor: pointer;
     text-align: left;
+    font: inherit;
+    line-height: var(--flowmd-line-height, 1.7em);
     transition: background-color 0.15s ease, transform 0.15s ease, color 0.15s ease;
 }
 
@@ -286,7 +263,8 @@ body {
 .outline-label {
     flex: 1 1 auto;
     min-width: 0;
-    line-height: 1.45;
+    font: inherit;
+    line-height: inherit;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -294,7 +272,8 @@ body {
 
 .outline-meta {
     flex: 0 0 auto;
-    font-size: 11px;
+    font-size: 0.85em;
+    line-height: inherit;
     color: var(--vscode-descriptionForeground, #999);
 }
 
@@ -498,10 +477,6 @@ ${styles}
         </div>
         <div id="outline-resizer" role="separator" aria-orientation="vertical" aria-label="Resize outline panel"></div>
         <aside id="outline-pane" aria-label="Markdown outline">
-            <div class="outline-header">
-                <span>Outline</span>
-                <span class="outline-header-badge" id="outline-count">0 items</span>
-            </div>
             <div id="outline-content">
                 <div class="outline-empty">标题大纲会在这里显示。</div>
             </div>
