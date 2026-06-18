@@ -1,0 +1,29 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "pnpm: build",
+            "type": "shell",
+            "command": "pnpm",
+            "args": [
+                "run",
+                "build"
+            ],
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "pnpm: watch",
+            "type": "shell",
+            "command": "pnpm",
+            "args": [
+                "run",
+                "watch"
+            ],
+            "isBackground": true,
+            "group": "build",
+            "problemMatcher": []
+        }
+    ]
+}
+
