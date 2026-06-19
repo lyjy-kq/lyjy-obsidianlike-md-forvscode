@@ -23,6 +23,8 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import type {
     OutlineWidthChangeMessage,
+    FontScaleChangeMessage,
+    EditorActionMessage,
     WebviewToExtensionMessage,
     ThemeType,
 } from '../shared/types.js';
@@ -31,6 +33,7 @@ import { checkFileSize, openWithTextEditor } from './fileSizeChecker.js';
 import { getHtmlForWebview } from './webviewContent.js';
 import { Logger } from './logger.js';
 import { ConfigManager } from './configManager.js';
+import { exportMarkdownAsHtml } from './htmlExporter.js';
 import { handleSaveImage } from './imageSaveHandler.js';
 
 // =============================================================================
@@ -507,7 +510,8 @@ export class FlowMdEditorProvider implements vscode.CustomTextEditorProvider {
                 if (
                     e.affectsConfiguration('flowMd.lineNumbers') ||
                     e.affectsConfiguration('flowMd.wordWrap') ||
-                    e.affectsConfiguration('flowMd.readableLineLength')
+                    e.affectsConfiguration('flowMd.readableLineLength') ||
+                    e.affectsConfiguration('flowMd.fontScale')
                 ) {
                     Logger.info('FlowMD editor settings changed');
                     webviewPanel.webview.postMessage({
@@ -663,12 +667,35 @@ export class FlowMdEditorProvider implements vscode.CustomTextEditorProvider {
                 break;
             }
 
+            case 'fontScaleChange' as typeof MESSAGE_TYPES.READY: {
+                const scaleMsg = message as FontScaleChangeMessage;
+                const clampedScale = Math.min(2, Math.max(0.5, Math.round(scaleMsg.fontScale * 100) / 100));
+                await vscode.workspace
+                    .getConfiguration('flowMd')
+                    .update('fontScale', clampedScale, vscode.ConfigurationTarget.Global);
+                Logger.debug(`Editor font scale saved: ${clampedScale}`);
+                break;
+            }
+
             // Handle clipboard write from webview (table cell copy etc.)
             case 'copyToClipboard' as typeof MESSAGE_TYPES.READY: {
                 const clipMsg = message as unknown as { text: string };
                 if (clipMsg.text) {
                     await vscode.env.clipboard.writeText(clipMsg.text);
                     Logger.debug(`Clipboard write: ${clipMsg.text.length} chars`);
+                }
+                break;
+            }
+
+            // Handle正文右键菜单动作
+            case 'editorAction' as typeof MESSAGE_TYPES.READY: {
+                const actionMsg = message as EditorActionMessage;
+                if (actionMsg.action === 'insertImage') {
+                    await this.insertImage();
+                } else if (actionMsg.action === 'exportAsHtml') {
+                    await exportMarkdownAsHtml(document.uri);
+                } else if (actionMsg.action === 'setMode' && actionMsg.mode) {
+                    this.setEditorMode(actionMsg.mode);
                 }
                 break;
             }

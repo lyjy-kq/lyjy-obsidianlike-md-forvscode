@@ -1,19 +1,19 @@
 {
-    "name": "flow-md",
-    "displayName": "FlowMD",
+    "name": "lyjy-obsidianlike-md-forvscode",
+    "displayName": "Lyjy ObsidianLike MD for VS Code",
     "description": "WYSIWYG Markdown editor for VS Code with Obsidian-style live preview. Tables, Mermaid diagrams, KaTeX math, code block syntax highlighting, and full IME support.",
     "version": "0.3.11",
-    "publisher": "hephaestus-workers",
+    "publisher": "lyjy-kq",
     "license": "SEE LICENSE IN LICENSE",
     "icon": "images/icon.png",
     "repository": {
         "type": "git",
-        "url": "https://github.com/hephaestus-workers/flow-md-issues"
+        "url": "https://github.com/lyjy-kq/lyjy-obsidianlike-md-forvscode"
     },
     "bugs": {
-        "url": "https://github.com/hephaestus-workers/flow-md-issues/issues"
+        "url": "https://github.com/lyjy-kq/lyjy-obsidianlike-md-forvscode/issues"
     },
-    "homepage": "https://github.com/hephaestus-workers/flow-md-issues#readme",
+    "homepage": "https://github.com/lyjy-kq/lyjy-obsidianlike-md-forvscode#readme",
     "engines": {
         "vscode": "^1.85.0"
     },
@@ -183,39 +183,9 @@
             ],
             "editor/title": [
                 {
-                    "command": "flowMd.insertImage",
+                    "command": "flowMd.exportAsHtml",
                     "when": "activeCustomEditorId == flowMd.editor",
                     "group": "navigation@0"
-                },
-                {
-                    "command": "flowMd.enterViewerMode",
-                    "when": "activeCustomEditorId == flowMd.editor && flowMd.editorMode == 'live' && config.flowMd.modeSwitcher == 'cycle'",
-                    "group": "navigation"
-                },
-                {
-                    "command": "flowMd.enterSourceMode",
-                    "when": "activeCustomEditorId == flowMd.editor && flowMd.editorMode == 'viewer' && config.flowMd.modeSwitcher == 'cycle'",
-                    "group": "navigation"
-                },
-                {
-                    "command": "flowMd.enterLiveMode",
-                    "when": "activeCustomEditorId == flowMd.editor && flowMd.editorMode == 'source' && config.flowMd.modeSwitcher == 'cycle'",
-                    "group": "navigation"
-                },
-                {
-                    "command": "flowMd.enterLiveMode",
-                    "when": "activeCustomEditorId == flowMd.editor && config.flowMd.modeSwitcher == 'buttons' && flowMd.editorMode != 'live'",
-                    "group": "navigation@1"
-                },
-                {
-                    "command": "flowMd.enterViewerMode",
-                    "when": "activeCustomEditorId == flowMd.editor && config.flowMd.modeSwitcher == 'buttons' && flowMd.editorMode != 'viewer'",
-                    "group": "navigation@2"
-                },
-                {
-                    "command": "flowMd.enterSourceMode",
-                    "when": "activeCustomEditorId == flowMd.editor && config.flowMd.modeSwitcher == 'buttons' && flowMd.editorMode != 'source'",
-                    "group": "navigation@3"
                 }
             ]
         },
@@ -256,6 +226,14 @@
                     "minimum": 0,
                     "description": "Max content width in pixels. Set to 0 for unlimited. Default: 900"
                 },
+                "flowMd.fontScale": {
+                    "type": "number",
+                    "default": 1,
+                    "minimum": 0.5,
+                    "maximum": 2,
+                    "description": "Editor body font size scale. Ctrl+wheel changes this value and saves it automatically.",
+                    "markdownDescription": "编辑器正文的字体大小缩放倍率。按 `Ctrl+滚轮` 调整后会自动保存。"
+                },
                 "flowMd.theme": {
                     "type": "string",
                     "enum": [
@@ -295,7 +273,7 @@
                     "default": "cycle",
                     "description": "Mode switcher button style in the editor title bar",
                     "enumDescriptions": [
-                        "Cycle - Single button that cycles Live → Viewer → Source",
+                        "Cycle - Single button that cycles Live 鈫?Viewer 鈫?Source",
                         "Buttons - Show direct-jump buttons for the other two modes"
                     ]
                 }

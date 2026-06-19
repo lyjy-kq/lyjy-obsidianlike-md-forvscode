@@ -29,6 +29,7 @@ import type {
     ThemeType,
     FlowMdEditorSettings,
     ContentChangeMessage,
+    FontScaleChangeMessage,
     ReadyMessage,
     ErrorMessage,
     ExtensionToWebviewMessage,
@@ -202,6 +203,44 @@ export class WebviewMessageSender {
         } satisfies ErrorMessage;
 
         this.vscode.postMessage(errorMessage);
+    }
+
+    /**
+     * Send an editor action message to the Extension.
+     *
+     * Used by the Markdown正文 right-click menu to request insert-image
+     * and editor mode changes without touching the editor content logic.
+     *
+     * @param action - The requested editor action
+     * @param mode - Optional target mode for mode-switch actions
+     * @returns void
+     */
+    public sendEditorAction(
+        action: 'insertImage' | 'setMode' | 'exportAsHtml',
+        mode?: 'live' | 'viewer' | 'source'
+    ): void {
+        this.vscode.postMessage({
+            type: 'editorAction',
+            action,
+            mode,
+        });
+    }
+
+    /**
+     * 发送编辑器字体缩放变更消息到扩展侧。
+     *
+     * 当用户通过 Ctrl+滚轮调整字号后调用，用于把最新缩放倍率写回配置。
+     *
+     * @param fontScale - 新的字体缩放倍率
+     * @returns void
+     */
+    public sendFontScaleChange(fontScale: number): void {
+        const message: FontScaleChangeMessage = {
+            type: 'fontScaleChange',
+            fontScale,
+        } satisfies FontScaleChangeMessage;
+
+        this.vscode.postMessage(message);
     }
 
     /**

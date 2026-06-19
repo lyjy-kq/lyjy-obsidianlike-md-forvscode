@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 	<PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
 		<Metadata>
-			<Identity Language="en-US" Id="flow-md" Version="0.3.11" Publisher="hephaestus-workers" />
-			<DisplayName>FlowMD</DisplayName>
+			<Identity Language="en-US" Id="lyjy-obsidianlike-md-forvscode" Version="0.3.11" Publisher="lyjy-kq" />
+			<DisplayName>Lyjy ObsidianLike MD for VS Code</DisplayName>
 			<Description xml:space="preserve">WYSIWYG Markdown editor for VS Code with Obsidian-style live preview. Tables, Mermaid diagrams, KaTeX math, code block syntax highlighting, and full IME support.</Description>
 			<Tags>markdown,markdown editor,wysiwyg,obsidian,live preview,mermaid,katex,table,code block,math,keybindings</Tags>
 			<Categories>Other</Categories>
@@ -16,11 +16,11 @@
 				<Property Id="Microsoft.VisualStudio.Code.LocalizedLanguages" Value="" />
 				
 				
-				<Property Id="Microsoft.VisualStudio.Services.Links.Source" Value="https://github.com/hephaestus-workers/flow-md-issues.git" />
-				<Property Id="Microsoft.VisualStudio.Services.Links.Getstarted" Value="https://github.com/hephaestus-workers/flow-md-issues.git" />
-				<Property Id="Microsoft.VisualStudio.Services.Links.GitHub" Value="https://github.com/hephaestus-workers/flow-md-issues.git" />
-				<Property Id="Microsoft.VisualStudio.Services.Links.Support" Value="https://github.com/hephaestus-workers/flow-md-issues/issues" />
-				<Property Id="Microsoft.VisualStudio.Services.Links.Learn" Value="https://github.com/hephaestus-workers/flow-md-issues#readme" />
+				<Property Id="Microsoft.VisualStudio.Services.Links.Source" Value="https://github.com/lyjy-kq/lyjy-obsidianlike-md-forvscode.git" />
+				<Property Id="Microsoft.VisualStudio.Services.Links.Getstarted" Value="https://github.com/lyjy-kq/lyjy-obsidianlike-md-forvscode.git" />
+				<Property Id="Microsoft.VisualStudio.Services.Links.GitHub" Value="https://github.com/lyjy-kq/lyjy-obsidianlike-md-forvscode.git" />
+				<Property Id="Microsoft.VisualStudio.Services.Links.Support" Value="https://github.com/lyjy-kq/lyjy-obsidianlike-md-forvscode/issues" />
+				<Property Id="Microsoft.VisualStudio.Services.Links.Learn" Value="https://github.com/lyjy-kq/lyjy-obsidianlike-md-forvscode#readme" />
 				<Property Id="Microsoft.VisualStudio.Services.Branding.Color" Value="#272b33" />
 				<Property Id="Microsoft.VisualStudio.Services.Branding.Theme" Value="dark" />
 				<Property Id="Microsoft.VisualStudio.Services.GitHubFlavoredMarkdown" Value="true" />

@@ -1,0 +1,390 @@
+/**
+ * FlowMD 正文右键菜单模块。
+ *
+ * 这个模块只负责 Webview 中 Markdown 正文区域的自定义右键菜单，
+ * 不处理大纲、标题栏或其它辅助 UI 的菜单逻辑。
+ */
+
+/**
+ * 支持的编辑器模式类型。
+ */
+export type EditorMode = 'live' | 'viewer' | 'source';
+
+/**
+ * 正文右键菜单需要调用的外部动作。
+ */
+export interface EditorContextMenuActions {
+    /** 读取当前编辑器模式，用于更新菜单的禁用状态。 */
+    getCurrentMode: () => EditorMode;
+    /** 触发插入图片操作。 */
+    onInsertImage: () => void;
+    /** 切换编辑器模式。 */
+    onChangeMode: (mode: EditorMode) => void;
+    /** 触发导出 HTML 操作。 */
+    onExportAsHtml: () => void;
+}
+
+/**
+ * FlowMD 正文右键菜单控制器。
+ */
+export class EditorContextMenu {
+    /** 菜单根节点。 */
+    private readonly menuEl: HTMLDivElement;
+
+    /** 当前绑定的正文区域容器。 */
+    private targetEl: HTMLElement | null = null;
+
+    /** 当前是否显示菜单。 */
+    private isOpen = false;
+
+    /** 菜单项对应的按钮集合。 */
+    private readonly buttons = new Map<
+        EditorMode | 'insert-image' | 'export-as-html',
+        HTMLButtonElement
+    >();
+
+    /** 菜单样式标识。 */
+    private static readonly STYLE_ID = 'flowmd-editor-context-menu-style';
+
+    /**
+     * 创建正文右键菜单控制器。
+     *
+     * @param actions - 外部动作回调
+     * @returns 右键菜单控制器实例
+     */
+    constructor(private readonly actions: EditorContextMenuActions) {
+        this.installStyles();
+        this.menuEl = this.createMenuElement();
+        this.installGlobalDismissHandlers();
+    }
+
+    /**
+     * 绑定到指定正文区域。
+     *
+     * @param targetEl - Markdown 正文区域容器
+     * @returns void
+     */
+    public attach(targetEl: HTMLElement | null): void {
+        if (this.targetEl) {
+            this.targetEl.removeEventListener('contextmenu', this.handleContextMenu);
+        }
+
+        this.targetEl = targetEl;
+        if (this.targetEl) {
+            this.targetEl.addEventListener('contextmenu', this.handleContextMenu);
+        }
+    }
+
+    /**
+     * 销毁菜单并移除事件绑定。
+     *
+     * @returns void
+     */
+    public destroy(): void {
+        this.attach(null);
+        this.hide();
+        this.menuEl.remove();
+    }
+
+    /**
+     * 创建菜单 DOM。
+     *
+     * @returns 菜单 DOM 节点
+     */
+    private createMenuElement(): HTMLDivElement {
+        const menu = document.createElement('div');
+        menu.className = 'flowmd-editor-context-menu';
+        menu.setAttribute('role', 'menu');
+        menu.setAttribute('aria-hidden', 'true');
+
+        const insertButton = this.createMenuButton('insert-image', '插入图片');
+        const liveButton = this.createMenuButton('live', '切换到实时预览');
+        const viewerButton = this.createMenuButton('viewer', '切换到查看模式');
+        const sourceButton = this.createMenuButton('source', '切换到源码模式');
+        const exportButton = this.createMenuButton('export-as-html', 'Export as HTML');
+
+        const firstSeparator = document.createElement('div');
+        firstSeparator.className = 'flowmd-editor-context-menu-separator';
+        const secondSeparator = document.createElement('div');
+        secondSeparator.className = 'flowmd-editor-context-menu-separator';
+
+        menu.appendChild(insertButton);
+        menu.appendChild(firstSeparator);
+        menu.appendChild(liveButton);
+        menu.appendChild(viewerButton);
+        menu.appendChild(sourceButton);
+        menu.appendChild(secondSeparator);
+        menu.appendChild(exportButton);
+
+        document.body.appendChild(menu);
+        this.buttons.set('insert-image', insertButton);
+        this.buttons.set('live', liveButton);
+        this.buttons.set('viewer', viewerButton);
+        this.buttons.set('source', sourceButton);
+        this.buttons.set('export-as-html', exportButton);
+
+        menu.addEventListener('pointerdown', (event: PointerEvent) => {
+            event.stopPropagation();
+        });
+
+        menu.addEventListener('click', this.handleMenuClick);
+        return menu;
+    }
+
+    /**
+     * 安装右键菜单样式。
+     *
+     * @returns void
+     */
+    private installStyles(): void {
+        if (document.getElementById(EditorContextMenu.STYLE_ID)) {
+            return;
+        }
+
+        const style = document.createElement('style');
+        style.id = EditorContextMenu.STYLE_ID;
+        style.textContent = `
+            .flowmd-editor-context-menu {
+                position: fixed;
+                z-index: 9999;
+                display: none;
+                min-width: 180px;
+                padding: 6px;
+                border-radius: 10px;
+                border: 1px solid var(--vscode-menu-border, var(--vscode-panel-border, rgba(127, 127, 127, 0.3)));
+                background: var(--vscode-menu-background, var(--vscode-sideBar-background, #252526));
+                color: var(--vscode-menu-foreground, var(--vscode-foreground, #d4d4d4));
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+                backdrop-filter: none;
+            }
+
+            .flowmd-editor-context-menu[aria-hidden='true'] {
+                pointer-events: none;
+            }
+
+            .flowmd-editor-context-menu-item {
+                width: 100%;
+                display: flex;
+                align-items: center;
+                justify-content: flex-start;
+                gap: 8px;
+                padding: 6px 10px;
+                border: none;
+                border-radius: 6px;
+                background: transparent;
+                color: inherit;
+                font: inherit;
+                text-align: left;
+                cursor: pointer;
+                line-height: 1.4;
+            }
+
+            .flowmd-editor-context-menu-item:hover:not(:disabled) {
+                background: var(--vscode-menu-selectionBackground, rgba(127, 127, 127, 0.18));
+                color: var(--vscode-menu-selectionForeground, var(--vscode-foreground, #d4d4d4));
+            }
+
+            .flowmd-editor-context-menu-item:disabled {
+                opacity: 0.45;
+                cursor: default;
+            }
+
+            .flowmd-editor-context-menu-item[data-active='true'] {
+                font-weight: 600;
+            }
+
+            .flowmd-editor-context-menu-separator {
+                height: 1px;
+                margin: 4px 6px;
+                background: var(--vscode-menu-separatorBackground, rgba(127, 127, 127, 0.18));
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    /**
+     * 创建菜单按钮。
+     *
+     * @param action - 按钮动作标识
+     * @param label - 按钮显示文本
+     * @returns 菜单按钮节点
+     */
+    private createMenuButton(
+        action: EditorMode | 'insert-image' | 'export-as-html',
+        label: string
+    ): HTMLButtonElement {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'flowmd-editor-context-menu-item';
+        button.dataset.action = action;
+        button.setAttribute('role', 'menuitem');
+        button.textContent = label;
+        return button;
+    }
+
+    /**
+     * 安装全局关闭逻辑。
+     *
+     * @returns void
+     */
+    private installGlobalDismissHandlers(): void {
+        document.addEventListener('click', this.handleDocumentClick, true);
+        document.addEventListener('keydown', this.handleDocumentKeydown, true);
+        window.addEventListener('blur', this.hide);
+        window.addEventListener('resize', this.hide);
+        window.addEventListener('scroll', this.hide, true);
+    }
+
+    /**
+     * 处理正文区域的右键菜单事件。
+     *
+     * @param event - 鼠标右键事件
+     * @returns void
+     */
+    private readonly handleContextMenu = (event: MouseEvent): void => {
+        if (!this.targetEl) {
+            return;
+        }
+
+        const target = event.target;
+        if (!(target instanceof Node) || !this.targetEl.contains(target)) {
+            return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        this.openAt(event.clientX, event.clientY);
+    };
+
+    /**
+     * 处理文档点击关闭菜单。
+     *
+     * @param event - 鼠标点击事件
+     * @returns void
+     */
+    private readonly handleDocumentClick = (event: MouseEvent): void => {
+        if (!this.isOpen) {
+            return;
+        }
+
+        const target = event.target;
+        if (target instanceof Node && this.menuEl.contains(target)) {
+            return;
+        }
+
+        this.hide();
+    };
+
+    /**
+     * 处理 ESC 键关闭菜单。
+     *
+     * @param event - 键盘事件
+     * @returns void
+     */
+    private readonly handleDocumentKeydown = (event: KeyboardEvent): void => {
+        if (!this.isOpen) {
+            return;
+        }
+
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            this.hide();
+        }
+    };
+
+    /**
+     * 处理菜单项点击。
+     *
+     * @param event - 点击事件
+     * @returns void
+     */
+    private readonly handleMenuClick = (event: MouseEvent): void => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+            return;
+        }
+
+        const button = target.closest<HTMLButtonElement>('[data-action]');
+        if (!button) {
+            return;
+        }
+
+        const action = button.dataset.action as
+            | EditorMode
+            | 'insert-image'
+            | 'export-as-html'
+            | undefined;
+        if (!action || button.disabled) {
+            return;
+        }
+
+        this.hide();
+        if (action === 'insert-image') {
+            this.actions.onInsertImage();
+            return;
+        }
+
+        if (action === 'export-as-html') {
+            this.actions.onExportAsHtml();
+            return;
+        }
+
+        this.actions.onChangeMode(action);
+    };
+
+    /**
+     * 打开菜单并自动修正边界位置。
+     *
+     * @param clientX - 鼠标 X 坐标
+     * @param clientY - 鼠标 Y 坐标
+     * @returns void
+     */
+    private openAt(clientX: number, clientY: number): void {
+        this.updateModeState();
+        this.isOpen = true;
+
+        this.menuEl.style.display = 'block';
+        this.menuEl.style.visibility = 'hidden';
+        this.menuEl.style.left = `${Math.max(8, clientX)}px`;
+        this.menuEl.style.top = `${Math.max(8, clientY)}px`;
+
+        const rect = this.menuEl.getBoundingClientRect();
+        const maxLeft = Math.max(8, window.innerWidth - rect.width - 8);
+        const maxTop = Math.max(8, window.innerHeight - rect.height - 8);
+        this.menuEl.style.left = `${Math.min(clientX, maxLeft)}px`;
+        this.menuEl.style.top = `${Math.min(clientY, maxTop)}px`;
+        this.menuEl.style.visibility = 'visible';
+        this.menuEl.setAttribute('aria-hidden', 'false');
+    }
+
+    /**
+     * 更新菜单中模式项的禁用状态。
+     *
+     * @returns void
+     */
+    private updateModeState(): void {
+        const currentMode = this.actions.getCurrentMode();
+        for (const [key, button] of this.buttons) {
+            if (key === 'insert-image' || key === 'export-as-html') {
+                continue;
+            }
+            button.disabled = key === currentMode;
+            button.dataset.active = key === currentMode ? 'true' : 'false';
+        }
+    }
+
+    /**
+     * 关闭菜单。
+     *
+     * @returns void
+     */
+    private readonly hide = (): void => {
+        if (!this.isOpen) {
+            return;
+        }
+
+        this.isOpen = false;
+        this.menuEl.style.display = 'none';
+        this.menuEl.setAttribute('aria-hidden', 'true');
+    };
+}

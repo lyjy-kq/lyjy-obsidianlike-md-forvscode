@@ -43,6 +43,7 @@ import {
 import { WebviewMessageSender, WebviewMessageHandler } from './messageHandler.js';
 import { WebviewThemeManager } from './theme.js';
 import { OutlinePanel } from './outlinePanel.js';
+import { EditorContextMenu, type EditorMode } from './editorContextMenu.js';
 import {
     setupImageDropHandler,
     createImagePasteHandler,
@@ -156,10 +157,20 @@ const debouncedSendContentChange = messageSender.createDebouncedSendContentChang
 let editor: CodeMirrorEditor | null = null;
 
 /**
+ * 当前编辑器模式，用于正文右键菜单的禁用态同步。
+ */
+let currentEditorMode: EditorMode = 'live';
+
+/**
  * The WebviewThemeManager instance.
  * Created during initialization, defaults to dark theme.
  */
 let themeManager: WebviewThemeManager | null = null;
+
+/**
+ * Markdown 正文右键菜单实例。
+ */
+let editorContextMenu: EditorContextMenu | null = null;
 
 /**
  * 右侧大纲管理器实例。
@@ -324,9 +335,14 @@ async function handleInit(
 
         // Create new CodeMirror editor
         editor = new CodeMirrorEditor(container);
+        editor.setFontScaleChangeHandler((fontScale: number) => {
+            messageSender.sendFontScaleChange(fontScale);
+        });
 
         // Initialize the editor with content
         await editor.create(content);
+        currentEditorMode = mode ?? 'live';
+        editorContextMenu?.attach(editor.getView()?.contentDOM ?? null);
 
         // Register change callback to send updates to Extension (debounced)
         editor.onChange((newContent: string) => {
@@ -371,13 +387,14 @@ async function handleInit(
             editor.applySettings(settings);
             sendLog(
                 'INFO',
-                `Settings applied: lineNumbers=${settings.lineNumbers}, wordWrap=${settings.wordWrap}, readableLineLength=${settings.readableLineLength}`
+                `Settings applied: lineNumbers=${settings.lineNumbers}, wordWrap=${settings.wordWrap}, readableLineLength=${settings.readableLineLength}, fontScale=${settings.fontScale}`
             );
         }
 
         // Apply default editor mode
         if (mode && mode !== 'live') {
             editor.setMode(mode);
+            currentEditorMode = mode;
             sendLog('INFO', `Default editor mode applied: ${mode}`);
         }
 
@@ -500,6 +517,14 @@ function initialize(): void {
         sendLog('ERROR', 'Outline panel DOM is missing, right-side outline is unavailable');
     }
 
+    // Markdown 正文右键菜单只绑定到编辑器正文容器，不覆盖大纲和其它 UI。
+    editorContextMenu = new EditorContextMenu({
+        getCurrentMode: () => currentEditorMode,
+        onInsertImage: () => messageSender.sendEditorAction('insertImage'),
+        onChangeMode: (mode: EditorMode) => messageSender.sendEditorAction('setMode', mode),
+        onExportAsHtml: () => messageSender.sendEditorAction('exportAsHtml'),
+    });
+
     // Capture documentBaseUri and handle viewerMode from raw messages
     window.addEventListener('message', (event: MessageEvent) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -518,19 +543,25 @@ function initialize(): void {
                 editor.setEditable(!msg.readOnly);
                 sendLog('INFO', `Viewer mode: ${msg.readOnly ? 'ON' : 'OFF'}`);
             }
+            if (msg.readOnly) {
+                currentEditorMode = 'viewer';
+            } else if (currentEditorMode === 'viewer') {
+                currentEditorMode = 'live';
+            }
         }
         if (msg && msg.type === 'editorMode') {
             if (editor && editor.isReady()) {
                 editor.setMode(msg.mode);
                 sendLog('INFO', `Editor mode: ${msg.mode}`);
             }
+            currentEditorMode = msg.mode;
         }
         if (msg && msg.type === 'settingsChange') {
             if (editor && editor.isReady() && msg.settings) {
                 editor.applySettings(msg.settings);
                 sendLog(
                     'INFO',
-                    `Settings updated: lineNumbers=${msg.settings.lineNumbers}, wordWrap=${msg.settings.wordWrap}, readableLineLength=${msg.settings.readableLineLength}`
+                    `Settings updated: lineNumbers=${msg.settings.lineNumbers}, wordWrap=${msg.settings.wordWrap}, readableLineLength=${msg.settings.readableLineLength}, fontScale=${msg.settings.fontScale}`
                 );
             }
         }

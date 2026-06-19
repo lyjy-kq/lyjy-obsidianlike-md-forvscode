@@ -616,17 +616,19 @@ body {
 }
 
 .flowmd-outline-node {
+    position: relative;
     margin: 0;
     padding: 0;
 }
 
 .flowmd-outline-row {
+    position: relative;
+    z-index: 0;
     display: flex;
     align-items: center;
     gap: 4px;
     min-height: 28px;
     padding: 2px 8px;
-    border-top: 1px solid transparent;
     border-radius: 6px;
     color: inherit;
     background: transparent;
@@ -635,7 +637,20 @@ body {
 
 .flowmd-outline-node + .flowmd-outline-node > .flowmd-outline-row,
 .flowmd-outline-children > .flowmd-outline-node + .flowmd-outline-node > .flowmd-outline-row {
-    border-top-color: rgba(255, 255, 255, 0.055);
+    overflow: visible;
+}
+
+.flowmd-outline-node + .flowmd-outline-node::before,
+.flowmd-outline-children > .flowmd-outline-node + .flowmd-outline-node::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 8px;
+    right: 8px;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.09);
+    pointer-events: none;
+    z-index: 1;
 }
 
 .flowmd-outline-row:hover {

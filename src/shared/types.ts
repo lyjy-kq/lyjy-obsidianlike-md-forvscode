@@ -31,6 +31,8 @@ export interface FlowMdEditorSettings {
     wordWrap: boolean;
     /** 可读行宽，单位像素，0 表示不限制。 */
     readableLineLength: number;
+    /** 编辑器正文字体缩放倍率。 */
+    fontScale: number;
 }
 
 // =============================================================================
@@ -83,6 +85,16 @@ export interface ThemeChangeMessage extends BaseMessage {
 }
 
 /**
+ * 编辑器字体缩放变更消息。
+ */
+export interface FontScaleChangeMessage extends BaseMessage {
+    /** 消息类型。 */
+    type: 'fontScaleChange';
+    /** 新的字体缩放倍率。 */
+    fontScale: number;
+}
+
+/**
  * 扩展 -> Webview 的消息联合类型。
  */
 export type ExtensionToWebviewMessage =
@@ -125,6 +137,18 @@ export interface OutlineWidthChangeMessage extends BaseMessage {
 }
 
 /**
+ * 编辑器正文右键动作消息。
+ */
+export interface EditorActionMessage extends BaseMessage {
+    /** 消息类型。 */
+    type: 'editorAction';
+    /** 动作类型。 */
+    action: 'insertImage' | 'setMode' | 'exportAsHtml';
+    /** 目标模式，仅在切换模式时使用。 */
+    mode?: 'live' | 'viewer' | 'source';
+}
+
+/**
  * 错误消息。
  */
 export interface ErrorMessage extends BaseMessage {
@@ -146,6 +170,8 @@ export type WebviewToExtensionMessage =
     | ReadyMessage
     | ErrorMessage
     | OutlineWidthChangeMessage
+    | FontScaleChangeMessage
+    | EditorActionMessage
     | SaveImageMessage;
 
 // =============================================================================

@@ -240,6 +240,8 @@ export class CodeMirrorEditor {
 
     /** External paste handler for image paste support (DES-API-003) */
     private pasteHandler: ((event: ClipboardEvent, view: EditorView) => boolean) | null = null;
+    /** 字体缩放变化回调，用于把 Ctrl+滚轮的结果同步回扩展侧配置。 */
+    private fontScaleChangeHandler: ((fontScale: number) => void) | null = null;
 
     /** 编辑器正文字号缩放倍率，1 表示保持 VS Code 原始字号。 */
     private fontScale: number = 1;
@@ -284,6 +286,7 @@ export class CodeMirrorEditor {
      * @returns void
      */
     private adjustFontScale(deltaY: number): void {
+        const previousScale = this.fontScale;
         const direction = deltaY < 0 ? 1 : -1;
         const nextScale = this.fontScale + direction * CodeMirrorEditor.FONT_SCALE_STEP;
         this.fontScale = Math.min(
@@ -291,6 +294,9 @@ export class CodeMirrorEditor {
             Math.max(CodeMirrorEditor.MIN_FONT_SCALE, nextScale)
         );
         this.applyFontScale();
+        if (this.fontScale !== previousScale) {
+            this.fontScaleChangeHandler?.(this.fontScale);
+        }
     }
 
     /**
@@ -487,6 +493,7 @@ export class CodeMirrorEditor {
         }
         this.onChangeCallback = undefined;
         this.pasteHandler = null;
+        this.fontScaleChangeHandler = null;
         this.suppressOnChange = false;
     }
 
@@ -597,6 +604,16 @@ export class CodeMirrorEditor {
      */
     setPasteHandler(handler: (event: ClipboardEvent, view: EditorView) => boolean): void {
         this.pasteHandler = handler;
+    }
+
+    /**
+     * Sets the callback that receives editor font scale changes.
+     *
+     * @param handler - Callback invoked when Ctrl+wheel changes the font scale
+     * @returns void
+     */
+    setFontScaleChangeHandler(handler: ((fontScale: number) => void) | null): void {
+        this.fontScaleChangeHandler = handler;
     }
 
     /**
@@ -769,6 +786,11 @@ export class CodeMirrorEditor {
     applySettings(settings: FlowMdEditorSettings): void {
         if (!this.view) return;
 
+        this.fontScale = Math.min(
+            CodeMirrorEditor.MAX_FONT_SCALE,
+            Math.max(CodeMirrorEditor.MIN_FONT_SCALE, settings.fontScale)
+        );
+
         // Line numbers
         this.view.dispatch({
             effects: this.lineNumbersCompartment.reconfigure(
@@ -788,5 +810,7 @@ export class CodeMirrorEditor {
         const maxWidth =
             settings.readableLineLength > 0 ? `${settings.readableLineLength}px` : '100%';
         editorEl.style.setProperty('--flowmd-max-width', maxWidth);
+
+        this.applyFontScale();
     }
 }

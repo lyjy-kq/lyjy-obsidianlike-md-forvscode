@@ -84,9 +84,16 @@ export function getInlineStyles(): string {
  * Base Layout - CodeMirror Editor
  * ============================================================================= */
 
+html {
+    width: 100%;
+    height: 100%;
+}
+
 body {
     margin: 0;
     padding: 0;
+    width: 100%;
+    height: 100%;
     background-color: var(--vscode-editor-background, #272b33);
     color: var(--vscode-editor-foreground, #d4d4d4);
     font-family: var(--vscode-editor-font-family, "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
@@ -95,22 +102,22 @@ body {
 }
 
 #app-shell {
-    width: 100vw;
-    height: 100vh;
+    width: 100%;
+    height: 100%;
     display: flex;
     flex-direction: row;
     overflow: hidden;
 }
 
 #editor-pane {
-    flex: 1 1 auto;
+    flex: 1 1 0;
     min-width: 0;
     position: relative;
 }
 
 #editor {
     width: 100%;
-    height: 100vh;
+    height: 100%;
 }
 
 /* CodeMirror fills the editor container */
@@ -158,9 +165,11 @@ body {
 
 #outline-pane {
     width: var(--flowmd-outline-width, 280px);
+    flex: 0 0 var(--flowmd-outline-width, 280px);
+    flex-shrink: 0;
     min-width: 220px;
     max-width: 480px;
-    height: 100vh;
+    height: 100%;
     overflow: hidden;
     background: var(--vscode-sideBar-background, var(--vscode-editor-background, #272b33));
     color: var(--vscode-sideBar-foreground, var(--vscode-editor-foreground, #d4d4d4));
@@ -264,6 +273,7 @@ body {
     min-height: var(--flowmd-line-height, 1.7em);
     padding: 0 6px 0 2px;
     border: 1px solid transparent;
+    border-bottom-color: rgba(128, 128, 128, 0.16);
     border-radius: 4px;
     background: color-mix(in srgb, var(--outline-accent, rgba(128, 128, 128, 0.08)) 72%, transparent);
     color: var(--outline-foreground, inherit);

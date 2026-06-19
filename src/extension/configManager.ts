@@ -57,6 +57,7 @@ export class ConfigurationError extends Error {
  * - flowMd.largeFileWarningThreshold: Large file size threshold in bytes
  * - flowMd.syncDebounceMs: Debounce delay for sync operations in milliseconds
  * - flowMd.enableDebugLog: Enable/disable debug logging
+ * - flowMd.fontScale: Editor body font scale multiplier
  *
  * @example
  * ```typescript
@@ -105,6 +106,9 @@ export class ConfigManager {
 
     /** Default value for readable line length (px, 0 = unlimited) */
     private static readonly DEFAULT_READABLE_LINE_LENGTH = 900;
+
+    /** Default value for editor font scale */
+    private static readonly DEFAULT_FONT_SCALE = 1;
 
     /** Default value for theme override */
     private static readonly DEFAULT_THEME: 'auto' | 'dark' | 'light' = 'auto';
@@ -263,6 +267,20 @@ export class ConfigManager {
     }
 
     /**
+     * Retrieves the editor body font scale multiplier.
+     *
+     * Configuration Key: flowMd.fontScale
+     * Default: 1
+     *
+     * @returns Font scale multiplier for the editor body
+     */
+    static getFontScale(): number {
+        return vscode.workspace
+            .getConfiguration(this.CONFIG_SECTION)
+            .get<number>('fontScale', this.DEFAULT_FONT_SCALE);
+    }
+
+    /**
      * Retrieves the theme override setting.
      *
      * Configuration Key: flowMd.theme
@@ -279,7 +297,7 @@ export class ConfigManager {
     /**
      * Returns editor settings as a single object for INIT message.
      *
-     * @returns FlowMdEditorSettings with wordWrap and readableLineLength
+     * @returns FlowMdEditorSettings with lineNumbers, wordWrap, readableLineLength, and fontScale
      */
     /**
      * Retrieves the default editor mode setting.
@@ -327,6 +345,7 @@ export class ConfigManager {
             lineNumbers: this.getLineNumbers(),
             wordWrap: this.getWordWrap(),
             readableLineLength: this.getReadableLineLength(),
+            fontScale: this.getFontScale(),
         };
     }
 }
