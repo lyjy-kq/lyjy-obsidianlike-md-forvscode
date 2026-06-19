@@ -123,7 +123,7 @@ export class ConfigManager {
      * Design Reference: DES-D-002
      * Requirement: REQ-3A-003
      */
-    private static readonly DEFAULT_IMAGE_SAVE_FOLDER = 'images';
+    private static readonly DEFAULT_IMAGE_SAVE_FOLDER = 'assets';
 
     /**
      * Retrieves the large file warning threshold in bytes.
@@ -320,7 +320,7 @@ export class ConfigManager {
      * relative to the directory of the current .md file.
      *
      * Configuration Key: flowMd.imageSaveFolder
-     * Default: 'images'
+     * Default: 'assets'
      *
      * Design Reference: DES-D-002
      * Requirement: REQ-3A-003
@@ -330,7 +330,7 @@ export class ConfigManager {
      * @example
      * ```typescript
      * const folder = ConfigManager.getImageSaveFolder();
-     * // folder === 'images' (default) or user-configured value
+     * // folder === 'assets' (default) or user-configured value
      * const savePath = path.join(path.dirname(mdFilePath), folder);
      * ```
      */

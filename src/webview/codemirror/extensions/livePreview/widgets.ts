@@ -8,12 +8,11 @@
 
 import { Transaction } from '@codemirror/state';
 import { EditorView, WidgetType } from '@codemirror/view';
-import { applyAlignment, renderInlineMarkdown } from './helpers.js';
+import { applyAlignment, renderInlineMarkdown, resolvePreviewImageUrl } from './helpers.js';
 import {
     copyToClipboard,
     foldedListItems,
     foldToggleEffect,
-    getDocumentBaseUri,
     getMermaidTheme,
     mermaidHeightCache,
     mermaidInitialized,
@@ -214,24 +213,8 @@ export class ImageWidget extends WidgetType {
         const wrapper = document.createElement('span');
         wrapper.className = 'cm-md-image-wrapper';
 
-        // Resolve the image URL
-        let resolvedUrl = '';
-        const baseUri = getDocumentBaseUri();
-        if (
-            this.url.startsWith('https://') ||
-            this.url.startsWith('http://') ||
-            this.url.startsWith('data:')
-        ) {
-            resolvedUrl = this.url;
-        } else if (baseUri && this.url) {
-            // Relative path: resolve against document base URI
-            try {
-                const base = baseUri.endsWith('/') ? baseUri : baseUri + '/';
-                resolvedUrl = new URL(this.url, base).href;
-            } catch {
-                resolvedUrl = '';
-            }
-        }
+        // 统一把远程地址与本地相对路径解析成 webview 可访问地址。
+        const resolvedUrl = resolvePreviewImageUrl(this.url);
 
         if (resolvedUrl) {
             const img = document.createElement('img');

@@ -32,6 +32,7 @@ import {
     getCodeBlockIndentLevel,
     parseFrontmatter,
     parseTableNode,
+    splitMarkdownImageDestination,
 } from './helpers.js';
 import { getMarkdownBlockRange } from './ranges.js';
 import { scrollPreserverExtension } from './scrollHack.js';
@@ -363,6 +364,115 @@ function collectCheckboxDecorations(
             );
         }
     }
+}
+
+/**
+ * 收集 wiki 图片与包含空格的 Markdown 图片装饰。
+ *
+ * 这里保留原有标准 Markdown 图片渲染分支，同时补上 Wiki 图片语法
+ * 与空格文件名场景，避免预览端只认一种写法。
+ *
+ * @param state - 当前编辑器状态
+ * @param decos - 装饰集合输出容器
+ * @param focusedRange - 当前正在编辑的块范围
+ */
+function collectImageDecorations(
+    state: EditorState,
+    decos: Array<ReturnType<Decoration['range']>>,
+    focusedRange: ILineRange,
+    tree: Tree
+): void {
+    const wikiImageRegex = /!\[\[([^\]\n]+?)\]\]/g;
+    const markdownImageRegex = /!\[([^\]]*?)\]\(([^)\n]+)\)/g;
+
+    treeLikeIterateTextBlocks(state, focusedRange, tree, (from, to, text) => {
+        wikiImageRegex.lastIndex = 0;
+        let match: RegExpExecArray | null;
+        while ((match = wikiImageRegex.exec(text)) !== null) {
+            const inner = match[1];
+            const [rawTarget, alias] = inner.split('|', 2);
+            const imageUrl = rawTarget.trim();
+            if (!imageUrl) {
+                continue;
+            }
+
+            const altText = alias ?? '';
+            decos.push(
+                Decoration.replace({
+                    widget: new ImageWidget(imageUrl, altText),
+                }).range(from + match.index, from + match.index + match[0].length)
+            );
+        }
+
+        markdownImageRegex.lastIndex = 0;
+        while ((match = markdownImageRegex.exec(text)) !== null) {
+            const altText = match[1];
+            const rawDestination = splitMarkdownImageDestination(match[2]);
+
+            // 标准无空格的 Markdown 图片保留给原有 syntax tree 分支处理，
+            // 这里只补充空格路径，避免重复装饰。
+            if (!/\s/.test(rawDestination)) {
+                continue;
+            }
+
+            if (!rawDestination) {
+                continue;
+            }
+
+            decos.push(
+                Decoration.replace({
+                    widget: new ImageWidget(rawDestination, altText),
+                }).range(from + match.index, from + match.index + match[0].length)
+            );
+        }
+    });
+}
+
+/**
+ * 遍历适合做图片识别的文本块。
+ *
+ * 目前只扫描段落与标题，避免把 fenced code、inline code 等内容
+ * 误识别为图片语法。
+ *
+ * @param state - 当前编辑器状态
+ * @param focusedRange - 当前正在编辑的块范围
+ * @param visit - 回调：接收块起点、终点和块文本
+ */
+function treeLikeIterateTextBlocks(
+    state: EditorState,
+    focusedRange: ILineRange,
+    tree: Tree,
+    visit: (from: number, to: number, text: string) => void
+): void {
+    tree.iterate({
+        from: 0,
+        to: state.doc.length,
+        enter: (nodeRef): boolean | void => {
+            const { from, to, name } = nodeRef;
+
+            if (from < focusedRange.to && to > focusedRange.from) {
+                return;
+            }
+
+            if (from >= to) {
+                return;
+            }
+
+            if (
+                name === 'Paragraph' ||
+                name === 'ATXHeading1' ||
+                name === 'ATXHeading2' ||
+                name === 'ATXHeading3' ||
+                name === 'ATXHeading4' ||
+                name === 'ATXHeading5' ||
+                name === 'ATXHeading6' ||
+                name === 'SetextHeading1' ||
+                name === 'SetextHeading2'
+            ) {
+                visit(from, to, state.doc.sliceString(from, to));
+            }
+        },
+    });
 }
 
 // =============================================================================
@@ -896,6 +1006,7 @@ function buildDecorations(state: EditorState): DecorationSet {
     collectDetailsDecorations(state, decos, focusedRange);
     collectMathDecorations(state, decos, focusedRange, tree);
     collectCheckboxDecorations(state, decos, focusedRange, tree, taskMarkerPositions);
+    collectImageDecorations(state, decos, focusedRange, tree);
 
     // Remember focused range for next update comparison
     return RangeSet.of(decos, true);

@@ -29,7 +29,6 @@ import {
     drawSelection,
 } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
-import { search, searchKeymap, openSearchPanel, closeSearchPanel } from '@codemirror/search';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { LanguageDescription, LanguageSupport, StreamLanguage } from '@codemirror/language';
 
@@ -61,9 +60,16 @@ import { markdownKeymap } from './extensions/keymap.js';
 import { codeBlockSelectionPlugin } from './extensions/livePreview/codeBlockSelection.js';
 import { createLivePreviewExtension } from './extensions/livePreview/index.js';
 
-import { searchMatchCount } from './extensions/searchMatchCount';
 import type { ContentChangeCallback } from './types';
 import type { FlowMdEditorSettings } from '../../shared/types.js';
+
+/**
+ * 光标行变化回调。
+ *
+ * @param lineNumber - 当前光标所在行号，从 1 开始。
+ * @returns void
+ */
+type SelectionLineChangeCallback = (lineNumber: number) => void;
 
 /**
  * Statically-loaded language descriptions for fenced code block syntax highlighting.
@@ -222,6 +228,9 @@ export class CodeMirrorEditor {
 
     /** Callback for content changes */
     private onChangeCallback: ContentChangeCallback | undefined;
+
+    /** Callback for active line changes. */
+    private onSelectionChangeCallback: SelectionLineChangeCallback | undefined;
 
     /** Flag to suppress onChange during programmatic updates */
     private suppressOnChange: boolean = false;
@@ -387,20 +396,13 @@ export class CodeMirrorEditor {
                 },
             }),
 
-            // Search (Ctrl+F, Ctrl+H) - top position like VS Code
-            search({ top: true }),
-            searchMatchCount,
-
             // History support (undo/redo)
             history(),
 
             // Keybindings
-            // Filter out Mod-f and Mod-h from searchKeymap to prevent double-firing
-            // with VS Code's keybinding commands (flowMd.find / flowMd.replace).
             keymap.of([
                 indentWithTab,
                 ...markdownKeymap,
-                ...searchKeymap.filter((k) => k.key !== 'Mod-f' && k.key !== 'Mod-h'),
                 ...defaultKeymap,
                 ...historyKeymap,
             ]),
@@ -437,6 +439,11 @@ export class CodeMirrorEditor {
                         `[FlowMD] updateListener: calling onChangeCallback (docLen=${update.state.doc.length})`
                     );
                     this.onChangeCallback(update.state.doc.toString());
+                }
+
+                if ((update.docChanged || update.selectionSet) && this.onSelectionChangeCallback) {
+                    const activeLine = update.state.doc.lineAt(update.state.selection.main.head).number;
+                    this.onSelectionChangeCallback(activeLine);
                 }
             }),
 
@@ -580,6 +587,20 @@ export class CodeMirrorEditor {
     }
 
     /**
+     * Gets the current line number of the editor selection.
+     *
+     * @returns The current line number, starting at 1
+     * @throws {EditorNotReadyError} If called before create()
+     */
+    getCurrentLine(): number {
+        if (!this.view) {
+            throw new EditorNotReadyError('getCurrentLine');
+        }
+
+        return this.view.state.doc.lineAt(this.view.state.selection.main.head).number;
+    }
+
+    /**
      * Registers a callback for content changes.
      *
      * The callback is invoked when the user edits the content (typing, pasting, etc.).
@@ -589,6 +610,20 @@ export class CodeMirrorEditor {
      */
     onChange(callback: ContentChangeCallback): void {
         this.onChangeCallback = callback;
+    }
+
+    /**
+     * Registers a callback for active line changes.
+     *
+     * The callback is invoked when the editor selection moves to a different
+     * line, including keyboard navigation, mouse clicks, and programmatic
+     * selection changes.
+     *
+     * @param callback - Function to call with the current line number
+     * @returns void
+     */
+    onSelectionChange(callback: SelectionLineChangeCallback): void {
+        this.onSelectionChangeCallback = callback;
     }
 
     /**
@@ -720,69 +755,6 @@ export class CodeMirrorEditor {
      *
      * @param settings - The editor settings to apply
      */
-    /**
-     * Executes an editor command (find, replace) triggered from VS Code keybindings.
-     */
-    executeCommand(command: string): void {
-        if (!this.view) return;
-        switch (command) {
-            case 'find': {
-                // Toggle: close if already open, open if closed.
-                // Mod-f is filtered out of searchKeymap to avoid double-firing.
-                const searchPanel = this.view.dom.querySelector('.cm-search');
-                if (searchPanel) {
-                    closeSearchPanel(this.view);
-                } else {
-                    openSearchPanel(this.view);
-                    this.addSearchEscapeHandler();
-                }
-                break;
-            }
-            case 'replace': {
-                // Toggle: close if already open, open if closed.
-                // Mod-h is filtered out of searchKeymap to avoid double-firing.
-                const replacePanel = this.view.dom.querySelector('.cm-search');
-                if (replacePanel) {
-                    closeSearchPanel(this.view);
-                } else {
-                    openSearchPanel(this.view);
-                    this.addSearchEscapeHandler();
-                    // Focus the replace field after panel renders
-                    setTimeout(() => {
-                        if (!this.view) return;
-                        const replaceField = this.view.dom.querySelector(
-                            '.cm-search input[name="replace"]'
-                        );
-                        if (replaceField) {
-                            (replaceField as HTMLElement).focus();
-                        }
-                    }, 50);
-                }
-                break;
-            }
-        }
-    }
-
-    /**
-     * Add Escape key handler to the search panel DOM element.
-     * VS Code webview may intercept Escape before CodeMirror's scoped keymap
-     * can handle it, so we handle it directly at the DOM level.
-     */
-    private addSearchEscapeHandler(): void {
-        if (!this.view) return;
-        setTimeout(() => {
-            const panel = this.view?.dom.querySelector('.cm-search');
-            if (!panel) return;
-            panel.addEventListener('keydown', (e) => {
-                if ((e as KeyboardEvent).key === 'Escape') {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (this.view) closeSearchPanel(this.view);
-                }
-            });
-        }, 0);
-    }
-
     applySettings(settings: FlowMdEditorSettings): void {
         if (!this.view) return;
 

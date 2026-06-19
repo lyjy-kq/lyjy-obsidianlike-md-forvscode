@@ -22,6 +22,8 @@ export interface EditorContextMenuActions {
     onChangeMode: (mode: EditorMode) => void;
     /** 触发导出 HTML 操作。 */
     onExportAsHtml: () => void;
+    /** 触发下载正文网络图片到本地操作。 */
+    onDownloadRemoteImages: () => void;
     /** 切换大纲显示状态。 */
     onToggleOutline: () => void;
     /** 读取当前大纲是否显示。 */
@@ -43,7 +45,7 @@ export class EditorContextMenu {
 
     /** 菜单项对应的按钮集合。 */
     private readonly buttons = new Map<
-        EditorMode | 'insert-image' | 'export-as-html' | 'toggle-outline',
+        EditorMode | 'insert-image' | 'export-as-html' | 'download-remote-images' | 'toggle-outline',
         HTMLButtonElement
     >();
 
@@ -102,6 +104,10 @@ export class EditorContextMenu {
         menu.setAttribute('aria-hidden', 'true');
 
         const insertButton = this.createMenuButton('insert-image', '插入图片');
+        const downloadButton = this.createMenuButton(
+            'download-remote-images',
+            '下载网络图片到本地'
+        );
         const outlineButton = this.createMenuButton('toggle-outline', '隐藏大纲');
         const liveButton = this.createMenuButton('live', '切换到实时预览');
         const viewerButton = this.createMenuButton('viewer', '切换到查看模式');
@@ -114,6 +120,7 @@ export class EditorContextMenu {
         secondSeparator.className = 'flowmd-editor-context-menu-separator';
 
         menu.appendChild(insertButton);
+        menu.appendChild(downloadButton);
         menu.appendChild(outlineButton);
         menu.appendChild(firstSeparator);
         menu.appendChild(liveButton);
@@ -124,6 +131,7 @@ export class EditorContextMenu {
 
         document.body.appendChild(menu);
         this.buttons.set('insert-image', insertButton);
+        this.buttons.set('download-remote-images', downloadButton);
         this.buttons.set('toggle-outline', outlineButton);
         this.buttons.set('live', liveButton);
         this.buttons.set('viewer', viewerButton);
@@ -217,7 +225,12 @@ export class EditorContextMenu {
      * @returns 菜单按钮节点
      */
     private createMenuButton(
-        action: EditorMode | 'insert-image' | 'export-as-html' | 'toggle-outline',
+        action:
+            | EditorMode
+            | 'insert-image'
+            | 'export-as-html'
+            | 'download-remote-images'
+            | 'toggle-outline',
         label: string
     ): HTMLButtonElement {
         const button = document.createElement('button');
@@ -320,6 +333,7 @@ export class EditorContextMenu {
             | EditorMode
             | 'insert-image'
             | 'export-as-html'
+            | 'download-remote-images'
             | 'toggle-outline'
             | undefined;
         if (!action || button.disabled) {
@@ -329,6 +343,11 @@ export class EditorContextMenu {
         this.hide();
         if (action === 'insert-image') {
             this.actions.onInsertImage();
+            return;
+        }
+
+        if (action === 'download-remote-images') {
+            this.actions.onDownloadRemoteImages();
             return;
         }
 
@@ -379,7 +398,12 @@ export class EditorContextMenu {
     private updateModeState(): void {
         const currentMode = this.actions.getCurrentMode();
         for (const [key, button] of this.buttons) {
-            if (key === 'insert-image' || key === 'export-as-html' || key === 'toggle-outline') {
+            if (
+                key === 'insert-image' ||
+                key === 'download-remote-images' ||
+                key === 'export-as-html' ||
+                key === 'toggle-outline'
+            ) {
                 continue;
             }
             button.disabled = key === currentMode;

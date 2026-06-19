@@ -42,6 +42,9 @@ interface PendingInsertion {
     altText: string;
 }
 
+/** 图片插入语法风格。 */
+type ImageLinkStyle = 'markdown' | 'wiki';
+
 // =============================================================================
 // Module State
 // =============================================================================
@@ -73,6 +76,79 @@ function handleDragOver(event: DragEvent): void {
         event.stopPropagation();
         event.dataTransfer.dropEffect = 'copy';
     }
+}
+
+/**
+ * 将相对图片路径规范化为 webview 插入语法可直接使用的形式。
+ *
+ * 例如 assets/foo.png 会被转换为 ./assets/foo.png，避免相对路径
+ * 在不同语法里表现不一致。
+ *
+ * @param relativePath - 扩展侧返回的相对图片路径
+ * @returns 规范化后的相对路径
+ */
+function normalizeImagePath(relativePath: string): string {
+    const normalized = relativePath.replace(/\\/g, '/').trim();
+    if (
+        normalized.startsWith('./') ||
+        normalized.startsWith('../') ||
+        normalized.startsWith('/')
+    ) {
+        return normalized;
+    }
+
+    return `./${normalized}`;
+}
+
+/**
+ * 统计文本中指定正则的命中次数。
+ *
+ * @param text - 待检查文本
+ * @param pattern - 全局匹配正则
+ * @returns 命中次数
+ */
+function countMatches(text: string, pattern: RegExp): number {
+    const matches = text.match(pattern);
+    return matches ? matches.length : 0;
+}
+
+/**
+ * 根据当前文档内容判断应使用的图片插入语法。
+ *
+ * 如果文档里已经大量使用 `![[...]]`，则延续 wiki 风格；
+ * 否则默认使用标准 Markdown 图片语法。
+ *
+ * @param docText - 当前 Markdown 文档内容
+ * @returns 图片插入语法风格
+ */
+function detectImageLinkStyle(docText: string): ImageLinkStyle {
+    const wikiCount = countMatches(docText, /!\[\[/g);
+    const markdownCount = countMatches(docText, /!\[[^\]]*?\]\(/g);
+    return wikiCount > markdownCount ? 'wiki' : 'markdown';
+}
+
+/**
+ * 构造图片插入文本。
+ *
+ * @param relativePath - 保存后的相对图片路径
+ * @param altText - 图片替代文本
+ * @param style - 图片链接语法风格
+ * @returns 可直接插入到正文中的 Markdown 文本
+ */
+function buildImageInsertText(
+    relativePath: string,
+    altText: string,
+    style: ImageLinkStyle
+): string {
+    const normalizedPath = normalizeImagePath(relativePath);
+    const normalizedAltText = altText.trim().replace(/]/g, '\\]').replace(/\[/g, '\\[');
+
+    if (style === 'wiki') {
+        const wikiAlt = normalizedAltText.replace(/\|/g, '\\|');
+        return wikiAlt ? `![[${normalizedPath}|${wikiAlt}]]\n` : `![[${normalizedPath}]]\n`;
+    }
+
+    return `![${normalizedAltText}](${normalizedPath})\n`;
 }
 
 /**
@@ -143,12 +219,8 @@ function handlePaste(
     const items = event.clipboardData?.items;
     if (!items) return false;
 
-    // 1. If text/plain exists, let CM6 handle it (text priority)
-    for (let i = 0; i < items.length; i++) {
-        if (items[i].type === 'text/plain') return false;
-    }
-
-    // 2. Search for image/* type
+    // 1. Search for image/* type first so clipboard images win even when
+    // the clipboard also contains text/plain metadata.
     let imageItem: DataTransferItem | null = null;
     for (let i = 0; i < items.length; i++) {
         if (items[i].type.startsWith('image/')) {
@@ -158,7 +230,7 @@ function handlePaste(
     }
     if (!imageItem) return false;
 
-    // 3. Get File object
+    // 2. Get File object
     const file = imageItem.getAsFile();
     if (!file) {
         console.debug('[FlowMD] getAsFile() returned null, falling back to default paste');
@@ -167,19 +239,19 @@ function handlePaste(
 
     event.preventDefault();
 
-    // 4. File size validation
+    // 3. File size validation
     if (file.size > MAX_IMAGE_SIZE) {
         postMessage({ type: 'error', message: '画像サイズが大きすぎます（上限: 10MB）' });
         return true;
     }
 
-    // 5. Generate timestamp-based filename
+    // 4. Generate timestamp-based filename
     const fileName = generatePasteFileName();
 
-    // 6. Remember cursor position
+    // 5. Remember cursor position
     const pos = view.state.selection.main.head;
 
-    // 7. base64 encode + send
+    // 6. base64 encode + send
     const reader = new FileReader();
     reader.onload = () => {
         const data = reader.result as string;
@@ -284,7 +356,8 @@ export function handleImageSaved(
 
     const pos = pending?.pos ?? view.state.selection.main.head;
     const altText = pending?.altText ?? '';
-    const insertText = `![${altText}](${message.relativePath})\n`;
+    const style = detectImageLinkStyle(view.state.doc.toString());
+    const insertText = buildImageInsertText(message.relativePath, altText, style);
 
     // Insert via CM6 dispatch (Undo/Redo compatible, works in Viewer Mode too)
     view.dispatch({

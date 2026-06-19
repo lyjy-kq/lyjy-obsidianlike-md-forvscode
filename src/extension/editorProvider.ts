@@ -35,6 +35,7 @@ import { Logger } from './logger.js';
 import { ConfigManager } from './configManager.js';
 import { exportMarkdownAsHtml } from './htmlExporter.js';
 import { handleSaveImage } from './imageSaveHandler.js';
+import { downloadRemoteImagesToAssets } from './remoteImageDownloadHandler.js';
 
 // =============================================================================
 // Constants
@@ -148,17 +149,6 @@ export class FlowMdEditorProvider implements vscode.CustomTextEditorProvider {
 
         vscode.commands.executeCommand('setContext', 'flowMd.editorMode', mode);
         Logger.info(`Editor mode set to '${mode}' for: ${docUri}`);
-    }
-
-    /**
-     * Sends a command to the active webview for execution.
-     */
-    public executeWebviewCommand(command: string): void {
-        if (!this.activePanelInfo) return;
-        this.activePanelInfo.panel.webview.postMessage({
-            type: MESSAGE_TYPES.EXECUTE_COMMAND,
-            command,
-        });
     }
 
     /**
@@ -278,6 +268,45 @@ export class FlowMdEditorProvider implements vscode.CustomTextEditorProvider {
             const errorMessage = error instanceof Error ? error.message : String(error);
             Logger.error(`Image insert from Explorer failed: ${errorMessage}`);
             vscode.window.showErrorMessage(`鐢诲儚銇尶鍏ャ伀澶辨晽銇椼伨銇椼仧: ${errorMessage}`);
+        }
+    }
+
+    /**
+     * Download remote images in the current Markdown document and rewrite links.
+     *
+     * @param document - Current Markdown text document
+     * @returns Promise<void>
+     */
+    public async downloadRemoteImages(document: vscode.TextDocument): Promise<void> {
+        try {
+            const originalContent = document.getText();
+            const result = await downloadRemoteImagesToAssets(originalContent, document.uri);
+
+            if (result.downloadedCount === 0) {
+                await vscode.window.showInformationMessage('FlowMD: 没有找到可下载的网络图片。');
+                return;
+            }
+
+            const success = await this.updateTextDocument(document, result.content);
+            if (!success) {
+                await vscode.window.showErrorMessage('FlowMD: 图片下载成功，但正文回写失败。');
+                return;
+            }
+
+            if (result.failedUrls.length > 0) {
+                await vscode.window.showWarningMessage(
+                    `FlowMD: 已下载 ${result.downloadedCount} 张网络图片，但有 ${result.failedUrls.length} 张失败。`
+                );
+                return;
+            }
+
+            await vscode.window.showInformationMessage(
+                `FlowMD: 已下载 ${result.downloadedCount} 张网络图片到 assets。`
+            );
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            Logger.error(`Download remote images failed: ${errorMessage}`);
+            await vscode.window.showErrorMessage(`FlowMD: 下载网络图片失败：${errorMessage}`);
         }
     }
 
@@ -692,6 +721,8 @@ export class FlowMdEditorProvider implements vscode.CustomTextEditorProvider {
                 const actionMsg = message as EditorActionMessage;
                 if (actionMsg.action === 'insertImage') {
                     await this.insertImage();
+                } else if (actionMsg.action === 'downloadRemoteImages') {
+                    await this.downloadRemoteImages(document);
                 } else if (actionMsg.action === 'exportAsHtml') {
                     await exportMarkdownAsHtml(document.uri);
                 } else if (actionMsg.action === 'setMode' && actionMsg.mode) {

@@ -10,6 +10,7 @@
 import type { EditorState } from '@codemirror/state';
 import type { SyntaxNode } from '@lezer/common';
 import type { TableData, FrontmatterProperty } from './types.js';
+import { getDocumentBaseUri } from './state.js';
 
 /**
  * Apply text alignment to an HTML element.
@@ -55,6 +56,63 @@ export function renderInlineMarkdown(text: string): string {
     html = html.replace(/`(.+?)`/g, '<code class="cm-md-code">$1</code>');
     html = html.replace(/\[(.+?)\]\((.+?)\)/g, '<a class="cm-md-link">$1</a>');
     return html;
+}
+
+/**
+ * 从 Markdown 图片语法里拆分出真正的图片目标地址。
+ *
+ * 该函数会尽量保留带空格的本地路径，同时去掉可选的标题部分，
+ * 以便后续统一交给图片渲染逻辑处理。
+ *
+ * @param rawDestination - Markdown 图片括号里的原始内容
+ * @returns 解析后的图片目标地址
+ */
+export function splitMarkdownImageDestination(rawDestination: string): string {
+    const trimmed = rawDestination.trim();
+    if (!trimmed) return '';
+
+    if (trimmed.startsWith('<') && trimmed.endsWith('>')) {
+        return trimmed.slice(1, -1).trim();
+    }
+
+    const titleMatch = trimmed.match(/^(.*?)(?:\s+(?:"[^"]*"|'[^']*'|\([^)]+\)))$/);
+    if (titleMatch) {
+        return titleMatch[1].trim();
+    }
+
+    return trimmed;
+}
+
+/**
+ * 将图片原始地址解析为 webview 可访问的最终地址。
+ *
+ * 支持远程图片、data URI 和文档同级的相对路径图片。
+ *
+ * @param rawUrl - 图片原始链接或相对路径
+ * @returns 可直接赋值给 img.src 的地址，失败时返回空字符串
+ */
+export function resolvePreviewImageUrl(rawUrl: string): string {
+    const trimmed = rawUrl.trim();
+    if (!trimmed) return '';
+
+    if (
+        trimmed.startsWith('http://') ||
+        trimmed.startsWith('https://') ||
+        trimmed.startsWith('data:')
+    ) {
+        return trimmed;
+    }
+
+    const baseUri = getDocumentBaseUri();
+    if (!baseUri) return '';
+
+    try {
+        const normalizedBase = baseUri.endsWith('/') ? baseUri : `${baseUri}/`;
+        const normalizedPath = trimmed.replace(/\\/g, '/');
+        return new URL(normalizedPath, normalizedBase).href;
+    } catch {
+        return '';
+    }
 }
 
 /**

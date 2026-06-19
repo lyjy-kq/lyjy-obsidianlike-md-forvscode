@@ -37,8 +37,6 @@ const COMMAND_ENTER_VIEWER = 'flowMd.enterViewerMode';
 const COMMAND_EXIT_VIEWER = 'flowMd.exitViewerMode';
 const COMMAND_ENTER_SOURCE = 'flowMd.enterSourceMode';
 const COMMAND_ENTER_LIVE = 'flowMd.enterLiveMode';
-const COMMAND_FIND = 'flowMd.find';
-const COMMAND_REPLACE = 'flowMd.replace';
 const COMMAND_EXPORT_HTML = 'flowMd.exportAsHtml';
 const COMMAND_INSERT_IMAGE = 'flowMd.insertImage';
 const COMMAND_INSERT_IMAGE_FROM_EXPLORER = 'flowMd.insertImageFromExplorer';
@@ -160,15 +158,6 @@ export function activate(context: vscode.ExtensionContext): void {
     );
     context.subscriptions.push(enterLiveCommand);
     Logger.debug('Registered editor mode commands');
-
-    // Register find/replace commands
-    context.subscriptions.push(
-        vscode.commands.registerCommand(COMMAND_FIND, () => provider.executeWebviewCommand('find')),
-        vscode.commands.registerCommand(COMMAND_REPLACE, () =>
-            provider.executeWebviewCommand('replace')
-        )
-    );
-    Logger.debug('Registered find/replace commands');
 
     // Register noop command to prevent VS Code's undo/redo from conflicting with CM6's history
     context.subscriptions.push(

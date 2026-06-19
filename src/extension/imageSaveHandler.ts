@@ -178,7 +178,7 @@ export function decodeBase64Data(dataUri: string): Uint8Array {
  * Performs path traversal prevention:
  * 1. Resolve the full path from docDir + folderName
  * 2. Verify the resolved path is under docDir
- * 3. Fallback to 'images' if path traversal is detected
+ * 3. Fallback to 'assets' if path traversal is detected
  *
  * @param docDir - absolute path of the .md file's directory
  * @returns validated folder name
@@ -189,9 +189,9 @@ export function getValidatedSaveFolder(docDir: string): string {
 
     if (!resolved.startsWith(docDir + path.sep) && resolved !== docDir) {
         Logger.error(
-            `Path traversal detected in imageSaveFolder: '${folderName}'. Falling back to 'images'.`
+            `Path traversal detected in imageSaveFolder: '${folderName}'. Falling back to 'assets'.`
         );
-        return 'images';
+        return 'assets';
     }
 
     return folderName;

@@ -262,6 +262,26 @@ function getInitialOutlineWidth(): number {
     return Math.round(parsedWidth);
 }
 
+/**
+ * 同步当前编辑器光标所在行到右侧大纲。
+ *
+ * 这样大纲高亮会跟随正文光标移动，而不是长期停留在第一条标题上。
+ *
+ * @returns void
+ */
+function syncOutlineActiveLine(): void {
+    if (!editor || !editor.isReady()) {
+        return;
+    }
+
+    try {
+        outlinePanel?.setActiveLine(editor.getCurrentLine());
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        sendLog('ERROR', `Sync outline active line skipped: ${errorMessage}`);
+    }
+}
+
 // =============================================================================
 // Logging
 // =============================================================================
@@ -272,11 +292,13 @@ function getInitialOutlineWidth(): number {
  * @param level - Log level (DEBUG, INFO, ERROR)
  * @param msg - Log message
  */
-function sendLog(level: 'DEBUG' | 'INFO' | 'ERROR', msg: string): void {
+function sendLog(level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR', msg: string): void {
     vscode.postMessage({ type: 'webviewLog', level, msg });
     // Also log to console
     if (level === 'ERROR') {
         console.error(`[FlowMD Webview] ${msg}`);
+    } else if (level === 'WARN') {
+        console.warn(`[FlowMD Webview] ${msg}`);
     } else if (level === 'DEBUG') {
         console.debug(`[FlowMD Webview] ${msg}`);
     } else {
@@ -338,6 +360,9 @@ async function handleInit(
         editor.setFontScaleChangeHandler((fontScale: number) => {
             messageSender.sendFontScaleChange(fontScale);
         });
+        editor.onSelectionChange((lineNumber: number) => {
+            outlinePanel?.setActiveLine(lineNumber);
+        });
 
         // Initialize the editor with content
         await editor.create(content);
@@ -352,6 +377,7 @@ async function handleInit(
 
         // Keep the outline aligned with the freshly loaded Markdown document
         outlinePanel?.setContent(content);
+        syncOutlineActiveLine();
         if (Number.isFinite(outlineWidth ?? NaN)) {
             outlinePanel?.setWidth(outlineWidth as number);
         }
@@ -431,6 +457,7 @@ function handleUpdate(content: string): void {
         // setContent() does NOT trigger onChange (feedback loop prevention)
         editor.setContent(content);
         outlinePanel?.setContent(content);
+        syncOutlineActiveLine();
         sendLog('DEBUG', 'UPDATE applied successfully');
         console.debug(`[FlowMD] handleUpdate: setContent completed`);
         // Stop reload spinner if it was active
@@ -523,6 +550,7 @@ function initialize(): void {
         onInsertImage: () => messageSender.sendEditorAction('insertImage'),
         onChangeMode: (mode: EditorMode) => messageSender.sendEditorAction('setMode', mode),
         onExportAsHtml: () => messageSender.sendEditorAction('exportAsHtml'),
+        onDownloadRemoteImages: () => messageSender.sendEditorAction('downloadRemoteImages'),
         onToggleOutline: () => outlinePanel?.toggleVisible(),
         isOutlineVisible: () => outlinePanel?.isOutlineVisible() ?? true,
     });
@@ -567,11 +595,6 @@ function initialize(): void {
                 );
             }
         }
-        if (msg && msg.type === 'executeCommand') {
-            if (editor && editor.isReady() && msg.command) {
-                editor.executeCommand(msg.command);
-            }
-        }
         if (msg && msg.type === 'imageSaved') {
             handleImageSaved(msg, () => editor?.getView() ?? null);
         }
@@ -603,16 +626,8 @@ function initialize(): void {
     // This fixes the issue where clicking on webview from outside (e.g., desktop)
     // doesn't properly focus the CodeMirror editor
     //
-    // IMPORTANT: Check for search panel existence in DOM (not activeElement)
-    // because focus events fire BEFORE activeElement updates, causing a race
-    // condition that closes the search panel immediately after opening.
     window.addEventListener('focus', () => {
         sendLog('DEBUG', 'Window focus event received');
-        // Don't steal focus if search/replace panel is open in DOM
-        if (document.querySelector('.cm-search')) {
-            sendLog('DEBUG', 'Search panel is open, skipping editor focus');
-            return;
-        }
         if (editor && editor.isReady()) {
             editor.focus();
             sendLog('DEBUG', 'Editor focus restored');
@@ -622,14 +637,11 @@ function initialize(): void {
     // Also handle click on the editor container to ensure focus
     document.addEventListener('click', (event) => {
         const target = event.target as HTMLElement;
-        // Don't steal focus from search/replace panel
-        if (target.closest('.cm-search') || document.querySelector('.cm-search')) return;
         const editorContainer = document.getElementById('editor');
         if (editorContainer && editorContainer.contains(target)) {
             if (editor && editor.isReady()) {
                 // Small delay to let CodeMirror handle the click first
                 setTimeout(() => {
-                    if (document.querySelector('.cm-search')) return;
                     editor?.focus();
                 }, 10);
             }
@@ -683,7 +695,6 @@ function initialize(): void {
 
             // Don't intercept if focus is in search panel or other input
             const active = document.activeElement;
-            if (active?.closest('.cm-search')) return;
             if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) return;
 
             if (tableCellSelections.size === 0) return;

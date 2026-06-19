@@ -90,16 +90,6 @@
                 "icon": "$(edit)"
             },
             {
-                "command": "flowMd.find",
-                "title": "FlowMD: Find",
-                "category": "FlowMD"
-            },
-            {
-                "command": "flowMd.replace",
-                "title": "FlowMD: Find and Replace",
-                "category": "FlowMD"
-            },
-            {
                 "command": "flowMd.exportAsHtml",
                 "title": "Export as HTML",
                 "category": "FlowMD"
@@ -118,18 +108,6 @@
             }
         ],
         "keybindings": [
-            {
-                "command": "flowMd.find",
-                "key": "ctrl+f",
-                "mac": "cmd+f",
-                "when": "activeCustomEditorId == flowMd.editor"
-            },
-            {
-                "command": "flowMd.replace",
-                "key": "ctrl+h",
-                "mac": "cmd+alt+f",
-                "when": "activeCustomEditorId == flowMd.editor"
-            },
             {
                 "command": "flowMd.noop",
                 "key": "ctrl+z",
@@ -231,8 +209,8 @@
                 },
                 "flowMd.imageSaveFolder": {
                     "type": "string",
-                    "default": "images",
-                    "description": "Folder name for saved images (relative to .md file). Default: images"
+                    "default": "assets",
+                    "description": "Folder name for saved images (relative to .md file). Default: assets"
                 },
                 "flowMd.defaultMode": {
                     "type": "string",
@@ -299,7 +277,6 @@
         "@codemirror/lang-markdown": "^6.5.0",
         "@codemirror/language": "^6.12.1",
         "@codemirror/language-data": "^6.5.2",
-        "@codemirror/search": "^6.6.0",
         "@codemirror/state": "^6.5.4",
         "@codemirror/view": "^6.39.12",
         "@lezer/common": "^1.5.1",
