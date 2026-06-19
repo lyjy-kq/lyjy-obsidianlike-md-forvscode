@@ -5,7 +5,6 @@
     "version": "0.3.11",
     "publisher": "lyjy-kq",
     "license": "SEE LICENSE IN LICENSE",
-    "icon": "images/icon.png",
     "repository": {
         "type": "git",
         "url": "https://github.com/lyjy-kq/lyjy-obsidianlike-md-forvscode"
