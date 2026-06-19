@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 	<PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
 		<Metadata>
-			<Identity Language="en-US" Id="lyjy-obsidianlike-md-forvscode" Version="0.3.11" Publisher="lyjy-kq" />
+			<Identity Language="en-US" Id="lyjy-obsidianlike-md" Version="0.3.11" Publisher="lyjy-kq" />
 			<DisplayName>Lyjy ObsidianLike MD for VS Code</DisplayName>
 			<Description xml:space="preserve">WYSIWYG Markdown editor for VS Code with Obsidian-style live preview. Tables, Mermaid diagrams, KaTeX math, code block syntax highlighting, and full IME support.</Description>
 			<Tags>markdown,markdown editor,wysiwyg,obsidian,live preview,mermaid,katex,table,code block,math,keybindings</Tags>
