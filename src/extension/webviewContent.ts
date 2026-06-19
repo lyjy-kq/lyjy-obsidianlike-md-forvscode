@@ -127,6 +127,7 @@ body {
 /* Scroller */
 #editor .cm-scroller {
     overflow: auto;
+    scrollbar-gutter: stable;
 }
 
 #outline-resizer {
@@ -160,124 +161,312 @@ body {
     min-width: 220px;
     max-width: 480px;
     height: 100vh;
-    overflow: auto;
-    background: var(--vscode-editor-background, #272b33);
-    color: var(--vscode-editor-foreground, #d4d4d4);
+    overflow: hidden;
+    background: var(--vscode-sideBar-background, var(--vscode-editor-background, #272b33));
+    color: var(--vscode-sideBar-foreground, var(--vscode-editor-foreground, #d4d4d4));
+    font-family: var(--vscode-editor-font-family, "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+    font-size: var(--vscode-editor-font-size, 14px);
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
+    position: relative;
 }
 
+/* 右侧大纲滚动区：自身承担滚动，保证内容从面板左上角直接起始。 */
 #outline-content {
-    padding: 0 8px 12px 0;
-    font-size: var(--vscode-editor-font-size, 14px);
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+    scrollbar-gutter: stable;
+    padding: 0;
+    font-size: inherit;
     line-height: var(--flowmd-line-height, 1.7em);
 }
 
+.flowmd-outline-content {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1 1 auto;
+}
+
+.outline-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    scrollbar-gutter: stable;
+    padding: 0;
+}
+
+.outline-tree {
+    padding: 0;
+    margin: 0;
+}
+
 .outline-empty {
-    padding: 12px 8px;
+    display: block;
+    padding: 0;
+    margin: 0;
     color: var(--vscode-descriptionForeground, #999);
     font-size: inherit;
     line-height: inherit;
 }
 
-.outline-tree,
-.outline-tree ul {
-    list-style: none;
+.outline-item {
+    position: relative;
     margin: 0;
     padding: 0;
 }
 
-.outline-item {
+.outline-node {
     margin: 0;
     overflow: hidden;
 }
 
+.outline-node[data-level="1"],
 .outline-item[data-level="1"] {
-    --outline-accent: rgba(235, 131, 131, 0.15);
+    --outline-accent: rgba(235, 131, 131, 0.5);
 }
 
+.outline-node[data-level="2"],
 .outline-item[data-level="2"] {
-    --outline-accent: rgba(174, 154, 203, 0.15);
+    --outline-accent: rgba(174, 154, 203, 0.5);
 }
 
+.outline-node[data-level="3"],
 .outline-item[data-level="3"] {
-    --outline-accent: rgba(125, 181, 205, 0.15);
+    --outline-accent: rgba(125, 181, 205, 0.5);
 }
 
+.outline-node[data-level="4"],
 .outline-item[data-level="4"] {
-    --outline-accent: rgba(113, 167, 150, 0.15);
+    --outline-accent: rgba(113, 167, 150, 0.5);
 }
 
+.outline-node[data-level="5"],
 .outline-item[data-level="5"] {
-    --outline-accent: rgba(220, 191, 97, 0.15);
+    --outline-accent: rgba(220, 191, 97, 0.5);
 }
 
+.outline-node[data-level="6"],
 .outline-item[data-level="6"] {
-    --outline-accent: rgba(221, 163, 106, 0.15);
+    --outline-accent: rgba(221, 163, 106, 0.5);
 }
 
 .outline-row {
     display: flex;
     align-items: center;
-    gap: 8px;
-    width: 100%;
+    gap: 3px;
     min-height: var(--flowmd-line-height, 1.7em);
-    padding: 0 10px 0 0;
-    border: none;
-    background: var(--outline-accent, rgba(128, 128, 128, 0.08));
-    color: inherit;
+    padding: 0 6px 0 2px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--outline-accent, rgba(128, 128, 128, 0.08)) 72%, transparent);
+    color: var(--outline-foreground, inherit);
     cursor: pointer;
     text-align: left;
     font: inherit;
     line-height: var(--flowmd-line-height, 1.7em);
-    transition: background-color 0.15s ease, transform 0.15s ease, color 0.15s ease;
+    box-sizing: border-box;
+    transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
 .outline-row:hover {
-    background: rgba(79, 193, 255, 0.18);
+    background: rgba(79, 193, 255, 0.14);
+    border-color: rgba(79, 193, 255, 0.18);
 }
 
 .outline-row[data-active="true"] {
-    background: rgba(79, 193, 255, 0.26);
-    color: var(--vscode-editor-foreground, #d4d4d4);
+    background: rgba(79, 193, 255, 0.22);
+    border-color: rgba(79, 193, 255, 0.28);
 }
 
 .outline-toggle {
-    width: 16px;
-    flex: 0 0 16px;
-    font-size: 11px;
-    line-height: 1;
-    text-align: center;
-    color: var(--vscode-focusBorder, #4fc1ff);
-    user-select: none;
+    width: 12px;
+    height: 12px;
+    flex: 0 0 12px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: inherit;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+    margin: 0;
+    opacity: 0.82;
+    transform: translateY(-0.5px);
 }
 
-.outline-toggle[data-collapsed="true"] {
-    color: var(--vscode-descriptionForeground, #999);
+.outline-toggle-spacer {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.outline-toggle:hover {
+    background: rgba(127, 127, 127, 0.12);
+    opacity: 1;
+}
+
+.outline-toggle svg {
+    width: 11px;
+    height: 11px;
+    fill: currentColor;
+    display: block;
+    pointer-events: none;
+}
+
+.outline-guides {
+    display: inline-flex;
+    align-self: stretch;
+    flex: 0 0 auto;
+    min-height: 100%;
+    margin-left: 1px;
+    pointer-events: none;
+}
+
+.outline-guide {
+    position: relative;
+    width: 8px;
+    flex: 0 0 8px;
+    align-self: stretch;
+}
+
+.outline-guide::before {
+    content: "";
+    position: absolute;
+    left: 3px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: rgba(127, 127, 127, 0.22);
+}
+
+.outline-toggle:disabled {
+    opacity: 0;
+    cursor: default;
 }
 
 .outline-label {
     flex: 1 1 auto;
     min-width: 0;
-    font: inherit;
-    line-height: inherit;
+    border: none;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    padding: 0;
+    font: inherit;
+    line-height: inherit;
 }
 
 .outline-meta {
     flex: 0 0 auto;
+    color: var(--vscode-descriptionForeground, #999);
     font-size: 0.85em;
     line-height: inherit;
-    color: var(--vscode-descriptionForeground, #999);
 }
 
 .outline-children {
-    margin-left: 14px;
-    padding-left: 10px;
-    border-left: 1px solid rgba(128, 128, 128, 0.16);
+    margin: 0;
+    padding: 0;
+}
+
+.outline-item {
+    position: relative;
+}
+
+.outline-node.is-collapsed > .outline-children,
+.outline-item.is-collapsed > .outline-children {
+    display: none;
+}
+
+/* 底部操作栏：固定在大纲面板底部，和内容区自然分离。 */
+.outline-actions {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    padding: 6px 6px 6px 6px;
+    border-top: 1px solid rgba(128, 128, 128, 0.18);
+    background: inherit;
+}
+
+.outline-actions:empty {
+    display: none;
+}
+
+.outline-action-btn {
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
+    border: 1px solid rgba(127, 127, 127, 0.24);
+    border-radius: 4px;
+    background: rgba(127, 127, 127, 0.12);
+    color: inherit;
+    font: inherit;
+    font-size: 15px;
+    line-height: 1;
+    padding: 0;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.outline-action-btn:hover {
+    background: rgba(79, 193, 255, 0.14);
+    border-color: rgba(79, 193, 255, 0.28);
+}
+
+.outline-action-btn:disabled {
+    opacity: 0.6;
+}
+
+.outline-action-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    flex: 0 0 auto;
+    line-height: 1;
+}
+
+.outline-tooltip {
+    position: absolute;
+    z-index: 9999;
+    max-width: min(360px, calc(100vw - 24px));
+    padding: 6px 8px;
+    border-radius: 4px;
+    background: var(--vscode-editorHoverWidget-background, rgba(40, 44, 52, 0.98));
+    color: var(--vscode-editorHoverWidget-foreground, var(--vscode-editor-foreground, #d4d4d4));
+    border: 1px solid var(--vscode-editorHoverWidget-border, rgba(128, 128, 128, 0.28));
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.24);
+    pointer-events: none;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: normal;
+    word-break: break-word;
+}
+
+.outline-tooltip[aria-hidden="true"],
+.outline-tooltip[data-visible="false"] {
+    display: none !important;
+}
+
+.outline-tooltip[hidden] {
+    display: none !important;
 }
 
 /* Scroll jump buttons */
@@ -339,8 +528,8 @@ body {
  * we read it on the extension side and forward it.
  *
  * Accepted values:
- * - `'normal'` / `'bold'` — CSS keywords
- * - Numeric `1`〜`1000` (string or number) — CSS Fonts Level 4 range
+ * - `'normal'` / `'bold'` 鈥?CSS keywords
+ * - Numeric `1`銆渀1000` (string or number) 鈥?CSS Fonts Level 4 range
  * - Anything else falls back to `'400'`
  *
  * Validation prevents unexpected values from breaking the inline `<style>`
@@ -371,13 +560,13 @@ function getEditorFontWeightCss(): string {
  * we read it on the extension side and forward it.
  *
  * VS Code semantics for `editor.lineHeight`:
- * - `0` (or unset) — auto: derive from font size; we map this to the existing
+ * - `0` (or unset) 鈥?auto: derive from font size; we map this to the existing
  *   `1.7em` fallback to preserve prior behaviour.
- * - `< 8` — multiplier of font size. We append `em` so the parent's computed
+ * - `< 8` 鈥?multiplier of font size. We append `em` so the parent's computed
  *   pixel value is inherited by child elements (e.g. `.cm-md-code` at
  *   `font-size: 0.9em`) instead of being re-evaluated against each child's
  *   font size, which would cause height-estimation mismatches and scroll jumps.
- * - `>= 8` — explicit pixel value.
+ * - `>= 8` 鈥?explicit pixel value.
  *
  * Anything that fails type/finiteness checks falls back to `1.7em` so a broken
  * setting cannot inject invalid CSS or open the inline `<style>` block to XSS.
@@ -477,15 +666,12 @@ ${styles}
             <div id="outline-content">
                 <div class="outline-empty">标题大纲会在这里显示。</div>
             </div>
+            <div id="outline-actions" class="outline-actions" aria-label="Outline actions"></div>
+            <div id="outline-tooltip" class="outline-tooltip" role="tooltip" aria-hidden="true"></div>
         </aside>
     </div>
-    
-    // <div class="scroll-jump-container">
-    //     <button class="scroll-jump-btn" id="reload-content" title="Reload from disk"><span class="btn-icon">&#8635;</span></button>
-    //     <button class="scroll-jump-btn" id="scroll-top" title="Scroll to top">&#9650;</button>
-    //     <button class="scroll-jump-btn" id="scroll-bottom" title="Scroll to bottom">&#9660;</button>
-    // </div>
     <script src="${scriptUriString}"></script>
 </body>
 </html>`;
 }
+

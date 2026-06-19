@@ -197,6 +197,24 @@ export function parseFrontmatter(yamlText: string): FrontmatterProperty[] {
 }
 
 /**
+ * 提取 fenced code block 的语言名。
+ *
+ * @param node - fenced code block 对应的语法节点
+ * @param state - 当前编辑器状态，用于读取代码块 info 文本
+ * @returns 规范化后的语言名，没有显式语言时返回 `go`
+ */
+export function extractFencedCodeLanguage(node: SyntaxNode, state: EditorState): string {
+    const codeInfoNode = node.getChild('CodeInfo');
+    if (!codeInfoNode) return 'go';
+
+    const rawInfo = state.doc.sliceString(codeInfoNode.from, codeInfoNode.to).trim();
+    if (!rawInfo) return 'go';
+
+    const language = rawInfo.split(/\s+/)[0].trim().toLowerCase();
+    return language || 'go';
+}
+
+/**
  * Extract content text from a fenced code block node (excluding opening/closing fences).
  */
 export function extractFencedCodeContent(node: SyntaxNode, state: EditorState): string | null {
@@ -207,4 +225,77 @@ export function extractFencedCodeContent(node: SyntaxNode, state: EditorState): 
     const contentEnd = state.doc.line(endLine.number).from;
     if (contentStart >= contentEnd) return null;
     return state.doc.sliceString(contentStart, contentEnd).trimEnd();
+}
+
+/**
+ * 计算代码行的缩进层级，用于缩进导引渲染。
+ *
+ * @param lineText - 当前代码行文本
+ * @returns 缩进层级，未缩进时返回 0
+ */
+export function getCodeBlockIndentLevel(lineText: string): number {
+    let indentColumns = 0;
+    let sawTab = false;
+    for (let i = 0; i < lineText.length; i++) {
+        const ch = lineText[i];
+        if (ch === ' ') {
+            if (sawTab) break;
+            indentColumns += 1;
+            continue;
+        }
+        if (ch === '\t') {
+            sawTab = true;
+            indentColumns += 4;
+            continue;
+        }
+        break;
+    }
+
+    if (indentColumns <= 0) return 0;
+    return Math.min(6, Math.max(1, Math.ceil(indentColumns / 4)));
+}
+
+/**
+ * 生成代码块缩进导引的内联样式。
+ *
+ * @param indentLevel - 缩进层级，0 表示最外层
+ * @returns 可直接写入 line decoration attributes.style 的样式字符串
+ */
+export function createCodeBlockIndentStyle(indentLevel: number): string {
+    const backgroundColor = '#1e1f20';
+    const palette = [
+        'rgba(235, 131, 131, 0.18)',
+        'rgba(174, 154, 203, 0.18)',
+        'rgba(125, 181, 205, 0.18)',
+        'rgba(113, 167, 150, 0.18)',
+        'rgba(220, 191, 97, 0.18)',
+        'rgba(221, 163, 106, 0.18)',
+        'rgba(184, 245, 162, 0.18)',
+    ];
+    const levelCount = Math.max(0, Math.min(6, indentLevel));
+    const layers: string[] = [];
+    const positions: string[] = [];
+    const sizes: string[] = [];
+
+    for (let i = 0; i < levelCount; i++) {
+        const color = palette[i % palette.length];
+        layers.push(`linear-gradient(${color}, ${color})`);
+        positions.push(`${i * 4}ch 0`);
+        sizes.push('4ch 100%');
+    }
+
+    if (layers.length === 0) {
+        return `background-color: ${backgroundColor}; background-image: none; background-repeat: no-repeat;`;
+    }
+
+    return [
+        `background-color: ${backgroundColor}`,
+        `background-image: ${layers.join(', ')}`,
+        'background-repeat: no-repeat',
+        // 使用 padding-box 让缩进块覆盖边缘留白，避免左右黑边露出。
+        'background-origin: padding-box',
+        'background-clip: padding-box',
+        `background-position: ${positions.join(', ')}`,
+        `background-size: ${sizes.join(', ')}`,
+    ].join('; ');
 }

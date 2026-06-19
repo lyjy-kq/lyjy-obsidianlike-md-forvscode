@@ -44,34 +44,34 @@ export function createBaseThemeStyles(): Extension {
             lineHeight: '1.6',
         },
         '.cm-md-heading-1': {
-            fontSize: '1.8em',
+            fontSize: '1.2em',
             fontWeight: '700',
             letterSpacing: '-0.02em',
             color: '#eb8383',
         },
         '.cm-md-heading-2': {
-            fontSize: '1.5em',
+            fontSize: 'inherit',
             fontWeight: '600',
             letterSpacing: '-0.01em',
             color: '#ae9acb',
         },
         '.cm-md-heading-3': {
-            fontSize: '1.25em',
+            fontSize: 'inherit',
             fontWeight: '600',
             color: '#7db5cd',
         },
         '.cm-md-heading-4': {
-            fontSize: '1.1em',
+            fontSize: 'inherit',
             fontWeight: '600',
             color: '#71a796',
         },
         '.cm-md-heading-5': {
-            fontSize: '1em',
+            fontSize: 'inherit',
             fontWeight: '600',
             color: '#dcbf61',
         },
         '.cm-md-heading-6': {
-            fontSize: '0.9em',
+            fontSize: 'inherit',
             fontWeight: '600',
             color: '#dda36a',
             textTransform: 'uppercase',
@@ -196,38 +196,63 @@ export function createBaseThemeStyles(): Extension {
         // which works above all backgrounds regardless of z-index.
         '.cm-md-codeblock': {
             fontFamily:
-                'var(--vscode-editor-font-family, "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace)',
-            fontSize: 'var(--vscode-editor-font-size, 0.9em)',
-            fontWeight: 'var(--flowmd-font-weight, 400)',
-            paddingLeft: '1.5em !important',
-            backgroundColor: '#30353f !important',
+                'inherit',
+            fontSize: 'inherit',
+            fontWeight: 'inherit',
+            lineHeight: 'inherit',
+            color: 'inherit',
+            backgroundColor: '#1e1f20',
+            borderLeft: '1px solid rgba(255, 255, 255, 0.12)',
+            borderRight: '1px solid rgba(255, 255, 255, 0.12)',
+            padding: '0 0.9em',
+            boxSizing: 'border-box',
         },
-        '&light .cm-md-codeblock': {
-            backgroundColor: '#e8ecf2 !important',
+        '.cm-md-codeblock-first': {
+            borderTop: '1px solid rgba(255, 255, 255, 0.12)',
+            borderTopLeftRadius: '12px',
+            borderTopRightRadius: '12px',
+        },
+        '.cm-md-codeblock-last': {
+            borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
+            borderBottomLeftRadius: '12px',
+            borderBottomRightRadius: '12px',
         },
         // Code block copy button
         '.cm-md-codeblock-copy': {
             float: 'right',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             cursor: 'pointer',
-            padding: '2px 8px',
-            fontSize: '0.75em',
-            borderRadius: '4px',
-            backgroundColor: 'rgba(255, 255, 255, 0.1)',
-            color: '#888',
+            padding: '0.2em 0.75em',
+            fontFamily:
+                'var(--vscode-editor-font-family, "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace)',
+            fontSize: '0.72em',
+            lineHeight: '1.4',
+            borderRadius: '999px',
+            border: '1px solid rgba(255, 255, 255, 0.14)',
+            backgroundColor: 'rgba(255, 255, 255, 0.06)',
+            color: '#aab1bf',
             userSelect: 'none',
-            transition: 'background-color 0.15s ease, color 0.15s ease',
+            transition:
+                'background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease',
+            marginLeft: '0.75em',
+            marginTop: '0.05em',
         },
         '.cm-md-codeblock-copy:hover': {
-            backgroundColor: 'rgba(255, 255, 255, 0.2)',
-            color: '#ccc',
+            backgroundColor: 'rgba(255, 255, 255, 0.12)',
+            color: '#d4d4d4',
+            borderColor: 'rgba(255, 255, 255, 0.24)',
         },
         '&light .cm-md-codeblock-copy': {
-            backgroundColor: 'rgba(0, 0, 0, 0.06)',
-            color: '#666',
+            backgroundColor: 'rgba(255, 255, 255, 0.06)',
+            color: '#aab1bf',
+            borderColor: 'rgba(255, 255, 255, 0.14)',
         },
         '&light .cm-md-codeblock-copy:hover': {
-            backgroundColor: 'rgba(0, 0, 0, 0.12)',
-            color: '#333',
+            backgroundColor: 'rgba(255, 255, 255, 0.12)',
+            color: '#d4d4d4',
+            borderColor: 'rgba(255, 255, 255, 0.24)',
         },
 
         // =================================================================
@@ -756,6 +781,13 @@ export function createBaseThemeStyles(): Extension {
             borderLeft: '1px solid rgba(128, 128, 128, 0.2)',
             marginLeft: '0.5em',
             paddingLeft: '0.5em !important',
+        },
+
+        // =================================================================
+        // Code block indent guides
+        // =================================================================
+        '.cm-md-codeblock-indent': {
+            backgroundRepeat: 'no-repeat',
         },
 
         // =================================================================

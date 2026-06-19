@@ -308,12 +308,16 @@ export class FoldArrowWidget extends WidgetType {
  * Clicking copies the code content to the clipboard.
  */
 export class CodeBlockCopyWidget extends WidgetType {
-    constructor(private codeContent: string) {
+    /** 按钮显示文案，默认使用代码块语言 */
+    private label: string;
+    /** 代码块正文，用于复制到剪贴板 */
+    constructor(private codeContent: string, label: string) {
         super();
+        this.label = label || 'go';
     }
 
     eq(other: CodeBlockCopyWidget): boolean {
-        return this.codeContent === other.codeContent;
+        return this.codeContent === other.codeContent && this.label === other.label;
     }
 
     ignoreEvent(): boolean {
@@ -323,7 +327,7 @@ export class CodeBlockCopyWidget extends WidgetType {
     toDOM(): HTMLElement {
         const btn = document.createElement('span');
         btn.className = 'cm-md-codeblock-copy';
-        btn.textContent = 'Copy';
+        btn.textContent = this.label;
         btn.addEventListener('mousedown', (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -332,13 +336,13 @@ export class CodeBlockCopyWidget extends WidgetType {
                 .then(() => {
                     btn.textContent = 'Copied!';
                     setTimeout(() => {
-                        btn.textContent = 'Copy';
+                        btn.textContent = this.label;
                     }, 1500);
                 })
                 .catch(() => {
                     btn.textContent = 'Failed';
                     setTimeout(() => {
-                        btn.textContent = 'Copy';
+                        btn.textContent = this.label;
                     }, 1500);
                 });
         });

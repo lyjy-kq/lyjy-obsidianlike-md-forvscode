@@ -16,7 +16,6 @@ import type { Tree } from '@lezer/common';
 import {
     blockquoteLevelDecos,
     boldMarkDeco,
-    codeBlockLineDeco,
     codeMarkDeco,
     flowMdDarkHighlight,
     flowMdLightHighlight,
@@ -26,7 +25,14 @@ import {
     italicMarkDeco,
     strikethroughMarkDeco,
 } from './decorations.js';
-import { extractFencedCodeContent, parseFrontmatter, parseTableNode } from './helpers.js';
+import {
+    extractFencedCodeContent,
+    extractFencedCodeLanguage,
+    createCodeBlockIndentStyle,
+    getCodeBlockIndentLevel,
+    parseFrontmatter,
+    parseTableNode,
+} from './helpers.js';
 import { getMarkdownBlockRange } from './ranges.js';
 import { scrollPreserverExtension } from './scrollHack.js';
 import {
@@ -665,44 +671,56 @@ function buildDecorations(state: EditorState): DecorationSet {
                 }
 
                 case 'FencedCode': {
-                    const codeInfoNode = nodeRef.node.getChild('CodeInfo');
-                    if (codeInfoNode) {
-                        const lang = state.doc
-                            .sliceString(codeInfoNode.from, codeInfoNode.to)
-                            .trim()
-                            .toLowerCase();
-                        if (lang === 'mermaid') {
-                            const content = extractFencedCodeContent(nodeRef.node, state);
-                            if (content) {
-                                const firstLine = state.doc.lineAt(from);
-                                const endLine = state.doc.lineAt(to);
-                                decos.push(
-                                    Decoration.replace({
-                                        widget: new MermaidWidget(
-                                            content,
-                                            state.facet(EditorView.darkTheme)
-                                        ),
-                                        block: true,
-                                    }).range(firstLine.from, endLine.to)
-                                );
-                                return false;
-                            }
+                    const language = extractFencedCodeLanguage(nodeRef.node, state);
+                    if (language === 'mermaid') {
+                        const content = extractFencedCodeContent(nodeRef.node, state);
+                        if (content) {
+                            const firstLine = state.doc.lineAt(from);
+                            const endLine = state.doc.lineAt(to);
+                            decos.push(
+                                Decoration.replace({
+                                    widget: new MermaidWidget(
+                                        content,
+                                        state.facet(EditorView.darkTheme)
+                                    ),
+                                    block: true,
+                                }).range(firstLine.from, endLine.to)
+                            );
+                            return false;
                         }
                     }
-                    // Normal code block: add background to all lines + copy button
+
+                    // 普通代码块只保留边框、语言按钮和缩进导引线。
                     {
                         const startLine = state.doc.lineAt(from);
                         const endLine = state.doc.lineAt(to);
                         for (let ln = startLine.number; ln <= endLine.number; ln++) {
                             const line = state.doc.line(ln);
-                            decos.push(codeBlockLineDeco.range(line.from));
+                            const classes = ['cm-md-codeblock'];
+                            const attributes: Record<string, string> = {};
+                            if (ln === startLine.number) {
+                                classes.push('cm-md-codeblock-first');
+                            }
+                            if (ln === endLine.number) {
+                                classes.push('cm-md-codeblock-last');
+                            }
+                            if (ln > startLine.number && ln < endLine.number) {
+                                const indentLevel = getCodeBlockIndentLevel(line.text);
+                                classes.push('cm-md-codeblock-indent');
+                                attributes.style = createCodeBlockIndentStyle(indentLevel);
+                            }
+                            decos.push(
+                                Decoration.line({
+                                    class: classes.join(' '),
+                                    attributes,
+                                }).range(line.from)
+                            );
                         }
-                        // Add copy button widget at end of first line (``` line)
                         const codeContent = extractFencedCodeContent(nodeRef.node, state);
                         if (codeContent !== null) {
                             decos.push(
                                 Decoration.widget({
-                                    widget: new CodeBlockCopyWidget(codeContent),
+                                    widget: new CodeBlockCopyWidget(codeContent, language),
                                     side: 1,
                                 }).range(startLine.to)
                             );

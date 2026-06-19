@@ -72,6 +72,10 @@ export function getMarkdownBlockRange(state: EditorState): ILineRange {
             name === 'HorizontalRule' ||
             name === 'HTMLBlock'
         ) {
+            // 普通段落按“当前行”进入编辑，避免相邻自然段被当成同一个编辑块。
+            if (name === 'Paragraph' && node.parent?.name !== 'ListItem') {
+                return { from: cursorLine.from, to: cursorLine.to };
+            }
             // For list items, include just the current item (not the whole list)
             if (name === 'ListItem') {
                 blockFrom = node.from;

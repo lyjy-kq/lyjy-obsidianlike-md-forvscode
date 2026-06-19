@@ -626,10 +626,16 @@ body {
     gap: 4px;
     min-height: 28px;
     padding: 2px 8px;
+    border-top: 1px solid transparent;
     border-radius: 6px;
     color: inherit;
     background: transparent;
     transition: background-color 120ms ease, color 120ms ease;
+}
+
+.flowmd-outline-node + .flowmd-outline-node > .flowmd-outline-row,
+.flowmd-outline-children > .flowmd-outline-node + .flowmd-outline-node > .flowmd-outline-row {
+    border-top-color: rgba(255, 255, 255, 0.055);
 }
 
 .flowmd-outline-row:hover {
