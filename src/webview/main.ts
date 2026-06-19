@@ -523,6 +523,8 @@ function initialize(): void {
         onInsertImage: () => messageSender.sendEditorAction('insertImage'),
         onChangeMode: (mode: EditorMode) => messageSender.sendEditorAction('setMode', mode),
         onExportAsHtml: () => messageSender.sendEditorAction('exportAsHtml'),
+        onToggleOutline: () => outlinePanel?.toggleVisible(),
+        isOutlineVisible: () => outlinePanel?.isOutlineVisible() ?? true,
     });
 
     // Capture documentBaseUri and handle viewerMode from raw messages

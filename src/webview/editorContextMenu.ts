@@ -22,6 +22,10 @@ export interface EditorContextMenuActions {
     onChangeMode: (mode: EditorMode) => void;
     /** 触发导出 HTML 操作。 */
     onExportAsHtml: () => void;
+    /** 切换大纲显示状态。 */
+    onToggleOutline: () => void;
+    /** 读取当前大纲是否显示。 */
+    isOutlineVisible: () => boolean;
 }
 
 /**
@@ -39,7 +43,7 @@ export class EditorContextMenu {
 
     /** 菜单项对应的按钮集合。 */
     private readonly buttons = new Map<
-        EditorMode | 'insert-image' | 'export-as-html',
+        EditorMode | 'insert-image' | 'export-as-html' | 'toggle-outline',
         HTMLButtonElement
     >();
 
@@ -98,6 +102,7 @@ export class EditorContextMenu {
         menu.setAttribute('aria-hidden', 'true');
 
         const insertButton = this.createMenuButton('insert-image', '插入图片');
+        const outlineButton = this.createMenuButton('toggle-outline', '隐藏大纲');
         const liveButton = this.createMenuButton('live', '切换到实时预览');
         const viewerButton = this.createMenuButton('viewer', '切换到查看模式');
         const sourceButton = this.createMenuButton('source', '切换到源码模式');
@@ -109,6 +114,7 @@ export class EditorContextMenu {
         secondSeparator.className = 'flowmd-editor-context-menu-separator';
 
         menu.appendChild(insertButton);
+        menu.appendChild(outlineButton);
         menu.appendChild(firstSeparator);
         menu.appendChild(liveButton);
         menu.appendChild(viewerButton);
@@ -118,6 +124,7 @@ export class EditorContextMenu {
 
         document.body.appendChild(menu);
         this.buttons.set('insert-image', insertButton);
+        this.buttons.set('toggle-outline', outlineButton);
         this.buttons.set('live', liveButton);
         this.buttons.set('viewer', viewerButton);
         this.buttons.set('source', sourceButton);
@@ -210,7 +217,7 @@ export class EditorContextMenu {
      * @returns 菜单按钮节点
      */
     private createMenuButton(
-        action: EditorMode | 'insert-image' | 'export-as-html',
+        action: EditorMode | 'insert-image' | 'export-as-html' | 'toggle-outline',
         label: string
     ): HTMLButtonElement {
         const button = document.createElement('button');
@@ -313,6 +320,7 @@ export class EditorContextMenu {
             | EditorMode
             | 'insert-image'
             | 'export-as-html'
+            | 'toggle-outline'
             | undefined;
         if (!action || button.disabled) {
             return;
@@ -329,6 +337,11 @@ export class EditorContextMenu {
             return;
         }
 
+        if (action === 'toggle-outline') {
+            this.actions.onToggleOutline();
+            return;
+        }
+
         this.actions.onChangeMode(action);
     };
 
@@ -341,6 +354,7 @@ export class EditorContextMenu {
      */
     private openAt(clientX: number, clientY: number): void {
         this.updateModeState();
+        this.updateOutlineState();
         this.isOpen = true;
 
         this.menuEl.style.display = 'block';
@@ -365,12 +379,26 @@ export class EditorContextMenu {
     private updateModeState(): void {
         const currentMode = this.actions.getCurrentMode();
         for (const [key, button] of this.buttons) {
-            if (key === 'insert-image' || key === 'export-as-html') {
+            if (key === 'insert-image' || key === 'export-as-html' || key === 'toggle-outline') {
                 continue;
             }
             button.disabled = key === currentMode;
             button.dataset.active = key === currentMode ? 'true' : 'false';
         }
+    }
+
+    /**
+     * 更新大纲切换按钮文案。
+     *
+     * @returns void
+     */
+    private updateOutlineState(): void {
+        const button = this.buttons.get('toggle-outline');
+        if (!button) {
+            return;
+        }
+
+        button.textContent = this.actions.isOutlineVisible() ? '隐藏大纲' : '打开大纲';
     }
 
     /**

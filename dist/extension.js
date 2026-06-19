@@ -143,6 +143,11 @@ body {
     background: rgba(79, 193, 255, 0.65);
 }
 
+#outline-resizer[hidden],
+#outline-pane[hidden] {
+    display: none !important;
+}
+
 #outline-pane {
     width: var(--flowmd-outline-width, 280px);
     flex: 0 0 var(--flowmd-outline-width, 280px);

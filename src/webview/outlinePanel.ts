@@ -62,6 +62,9 @@ export class OutlinePanel {
     /** 褰撳墠澶х翰瀹藉害銆?*/
     private width: number;
 
+    /** 当前大纲是否可见。 */
+    private outlineVisible = true;
+
     /** 褰撳墠 Markdown 鏍囬鏍戙€?*/
     private nodes: OutlineNode[] = [];
 
@@ -411,6 +414,59 @@ export class OutlinePanel {
     }
 
     /**
+     * 设置大纲面板的显示状态。
+     *
+     * @param visible - 是否显示大纲面板
+     * @returns void
+     */
+    public setVisible(visible: boolean): void {
+        const nextVisible = Boolean(visible);
+        if (this.outlineVisible === nextVisible) {
+            return;
+        }
+
+        this.outlineVisible = nextVisible;
+
+        if (nextVisible) {
+            this.panelEl.hidden = false;
+            this.panelEl.style.display = '';
+            this.panelEl.style.visibility = '';
+            this.panelEl.style.width = '';
+            this.panelEl.style.flexBasis = '';
+            this.panelEl.setAttribute('aria-hidden', 'false');
+
+            this.resizerEl.hidden = false;
+            this.resizerEl.style.display = '';
+            this.resizerEl.style.visibility = '';
+            this.resizerEl.setAttribute('aria-hidden', 'false');
+
+            this.applyWidth(this.width);
+            return;
+        }
+
+        this.panelEl.hidden = true;
+        this.panelEl.setAttribute('aria-hidden', 'true');
+        this.panelEl.style.display = 'none';
+        this.panelEl.style.visibility = 'hidden';
+        this.panelEl.style.width = '0';
+        this.panelEl.style.flexBasis = '0';
+
+        this.resizerEl.hidden = true;
+        this.resizerEl.setAttribute('aria-hidden', 'true');
+        this.resizerEl.style.display = 'none';
+        this.resizerEl.style.visibility = 'hidden';
+    }
+
+    /**
+     * 反转大纲面板的显示状态。
+     *
+     * @returns void
+     */
+    public toggleVisible(): void {
+        this.setVisible(!this.outlineVisible);
+    }
+
+    /**
      * 璁剧疆褰撳墠楂樹寒琛屻€?     *
      * @param lineNumber - 褰撳墠琛屽彿
      * @returns void
@@ -429,6 +485,15 @@ export class OutlinePanel {
      * @returns 褰撳墠瀹藉害锛屽崟浣嶅儚绱?     */
     public getWidth(): number {
         return this.width;
+    }
+
+    /**
+     * 获取当前大纲是否可见。
+     *
+     * @returns 当前可见状态
+     */
+    public isOutlineVisible(): boolean {
+        return this.outlineVisible;
     }
 
     /**

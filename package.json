@@ -172,20 +172,6 @@
                     "when": "resourceExtname == .md",
                     "group": "1_modification"
                 }
-            ],
-            "editor/title/context": [
-                {
-                    "command": "flowMd.exportAsHtml",
-                    "when": "activeCustomEditorId == flowMd.editor",
-                    "group": "1_modification"
-                }
-            ],
-            "editor/title": [
-                {
-                    "command": "flowMd.exportAsHtml",
-                    "when": "activeCustomEditorId == flowMd.editor",
-                    "group": "navigation@0"
-                }
             ]
         },
         "configuration": {
