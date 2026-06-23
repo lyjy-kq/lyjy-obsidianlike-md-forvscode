@@ -25,6 +25,12 @@ import {
     type TableCellRange,
     widgetHeightCache,
 } from './state.js';
+import {
+    copyMermaidRenderedImageSafely,
+    createPreviewActionGroup,
+    openImagePreviewOverlay,
+    openMermaidPreviewOverlay,
+} from './previewOverlay.js';
 import type { FrontmatterProperty, TableData } from './types.js';
 
 // =============================================================================
@@ -194,6 +200,7 @@ export class CheckboxWidget extends WidgetType {
  * Only supports https:// and data: URLs, or relative paths via documentBaseUri.
  */
 export class ImageWidget extends WidgetType {
+    /** 图片原始地址。 */
     constructor(
         private url: string,
         private alt: string
@@ -209,12 +216,82 @@ export class ImageWidget extends WidgetType {
         return false;
     }
 
-    toDOM(): HTMLElement {
+    /**
+     * 创建图片预览 DOM。
+     *
+     * 图片本体仍保持内联渲染，右下角追加放大与复制按钮。
+     *
+     * @returns 图片预览节点
+     */
+    toDOM(view: EditorView): HTMLElement {
         const wrapper = document.createElement('span');
         wrapper.className = 'cm-md-image-wrapper';
+        const contentHost = document.createElement('span');
+        contentHost.className = 'cm-md-image-content';
+        wrapper.appendChild(contentHost);
+        wrapper.addEventListener('click', (event: MouseEvent) => {
+            if (!(event.ctrlKey || event.metaKey)) {
+                return;
+            }
+
+            const rawUrl = this.url.trim();
+            if (
+                !rawUrl ||
+                rawUrl.startsWith('http://') ||
+                rawUrl.startsWith('https://') ||
+                rawUrl.startsWith('data:')
+            ) {
+                return;
+            }
+
+            const openPath = rawUrl.split('#')[0].split('?')[0].trim();
+            if (!openPath) {
+                return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const vscodeApi = (window as any).__vscodeApi;
+            if (vscodeApi) {
+                vscodeApi.postMessage({ type: 'openFile', path: openPath });
+            }
+        });
 
         // 统一把远程地址与本地相对路径解析成 webview 可访问地址。
         const resolvedUrl = resolvePreviewImageUrl(this.url);
+        const actionGroup = createPreviewActionGroup(
+            '放大查看图片',
+            '复制图片',
+            () => {
+                openImagePreviewOverlay({
+                    rawUrl: this.url,
+                    resolvedUrl,
+                    altText: this.alt,
+                    mountHost: view.dom,
+                });
+            },
+            async () => {
+                if (!resolvedUrl) {
+                    throw new Error('image url not resolved');
+                }
+
+                const response = await fetch(resolvedUrl);
+                if (!response.ok) {
+                    throw new Error('image fetch failed');
+                }
+
+                const blob = await response.blob();
+                if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') {
+                    throw new Error('clipboard image write unavailable');
+                }
+
+                const mimeType = blob.type || 'image/png';
+                await navigator.clipboard.write([new ClipboardItem({ [mimeType]: blob })]);
+            }
+        );
+        wrapper.appendChild(actionGroup);
 
         if (resolvedUrl) {
             const img = document.createElement('img');
@@ -222,18 +299,18 @@ export class ImageWidget extends WidgetType {
             img.alt = this.alt;
             img.className = 'cm-md-image';
             img.onerror = () => {
-                wrapper.innerHTML = '';
+                contentHost.replaceChildren();
                 const fallback = document.createElement('span');
                 fallback.className = 'cm-md-image-fallback';
                 fallback.textContent = this.alt || '[image]';
-                wrapper.appendChild(fallback);
+                contentHost.appendChild(fallback);
             };
-            wrapper.appendChild(img);
+            contentHost.appendChild(img);
         } else {
             const fallback = document.createElement('span');
             fallback.className = 'cm-md-image-fallback';
             fallback.textContent = this.alt || '[image]';
-            wrapper.appendChild(fallback);
+            contentHost.appendChild(fallback);
         }
 
         return wrapper;
@@ -1029,6 +1106,7 @@ export class TableWidget extends WidgetType {
  * Widget that renders a Mermaid diagram.
  */
 export class MermaidWidget extends WidgetType {
+    /** Mermaid 源文本。 */
     constructor(
         private source: string,
         private isDark: boolean
@@ -1048,22 +1126,50 @@ export class MermaidWidget extends WidgetType {
         return false;
     }
 
+    /**
+     * 创建 Mermaid 预览 DOM。
+     *
+     * 右下角提供放大与复制按钮，放大后进入独立浮层查看器。
+     *
+     * @param view - 当前 CodeMirror 视图
+     * @returns Mermaid 预览节点
+     */
     toDOM(view: EditorView): HTMLElement {
         const wrapper = document.createElement('div');
         wrapper.className = 'cm-md-mermaid-wrapper';
+        const contentHost = document.createElement('div');
+        contentHost.className = 'cm-md-mermaid-content';
+        wrapper.appendChild(contentHost);
+        const actionGroup = createPreviewActionGroup(
+            '放大查看图表',
+            '复制 Mermaid 图',
+            () => {
+                openMermaidPreviewOverlay({
+                    source: this.source,
+                    mountHost: view.dom,
+                });
+            },
+            async () => {
+                const success = await copyMermaidRenderedImageSafely(this.source);
+                if (!success) {
+                    throw new Error('copy failed');
+                }
+            }
+        );
+        wrapper.appendChild(actionGroup);
 
         const cached = mermaidSvgCache.get(this.source);
         if (cached) {
-            wrapper.innerHTML = cached;
+            contentHost.innerHTML = cached;
             return wrapper;
         }
 
         const placeholder = document.createElement('div');
         placeholder.className = 'cm-md-mermaid-placeholder';
         placeholder.textContent = 'Rendering diagram...';
-        wrapper.appendChild(placeholder);
+        contentHost.appendChild(placeholder);
 
-        this.renderAsync(wrapper, view);
+        this.renderAsync(contentHost, view);
         return wrapper;
     }
 

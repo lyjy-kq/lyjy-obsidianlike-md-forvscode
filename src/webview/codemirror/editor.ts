@@ -29,6 +29,7 @@ import {
     drawSelection,
 } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
+import { search, searchKeymap } from '@codemirror/search';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { LanguageDescription, LanguageSupport, StreamLanguage } from '@codemirror/language';
 
@@ -59,6 +60,7 @@ import { createThemeExtension } from './extensions/theme';
 import { markdownKeymap } from './extensions/keymap.js';
 import { codeBlockSelectionPlugin } from './extensions/livePreview/codeBlockSelection.js';
 import { createLivePreviewExtension } from './extensions/livePreview/index.js';
+import { searchMatchCount } from './extensions/searchMatchCount.js';
 
 import type { ContentChangeCallback } from './types';
 import type { FlowMdEditorSettings } from '../../shared/types.js';
@@ -399,10 +401,15 @@ export class CodeMirrorEditor {
             // History support (undo/redo)
             history(),
 
+            // Search support (Ctrl+F / Ctrl+H) with a top-anchored panel.
+            search({ top: true }),
+            searchMatchCount,
+
             // Keybindings
             keymap.of([
                 indentWithTab,
                 ...markdownKeymap,
+                ...searchKeymap,
                 ...defaultKeymap,
                 ...historyKeymap,
             ]),

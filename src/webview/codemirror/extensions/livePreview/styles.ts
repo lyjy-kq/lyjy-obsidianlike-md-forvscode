@@ -511,6 +511,7 @@ export function createBaseThemeStyles(): Extension {
         // Mermaid diagrams
         // =================================================================
         '.cm-md-mermaid-wrapper': {
+            position: 'relative',
             borderTop: '12px solid transparent',
             borderBottom: '12px solid transparent',
             backgroundClip: 'padding-box',
@@ -520,6 +521,10 @@ export function createBaseThemeStyles(): Extension {
             textAlign: 'center',
             overflow: 'auto',
             minHeight: '200px',
+        },
+        '.cm-md-mermaid-content': {
+            position: 'relative',
+            zIndex: '1',
         },
         '.cm-md-mermaid-wrapper.cm-md-mermaid-rendered': {
             minHeight: 'unset',
@@ -573,6 +578,7 @@ export function createBaseThemeStyles(): Extension {
         // Images
         // =================================================================
         '.cm-md-image-wrapper': {
+            position: 'relative',
             display: 'inline-block',
             maxWidth: '100%',
         },
@@ -593,6 +599,161 @@ export function createBaseThemeStyles(): Extension {
         },
         '&light .cm-md-image-fallback': {
             color: '#656d76',
+        },
+        '.cm-md-preview-actions': {
+            position: 'absolute',
+            right: '6px',
+            bottom: '6px',
+            zIndex: '10',
+            display: 'inline-flex',
+            gap: '4px',
+            padding: '2px',
+            borderRadius: '999px',
+            backgroundColor: 'rgba(25, 25, 25, 0.55)',
+            backdropFilter: 'blur(8px)',
+            boxShadow: '0 1px 6px rgba(0, 0, 0, 0.18)',
+        },
+        '&light .cm-md-preview-actions': {
+            backgroundColor: 'rgba(255, 255, 255, 0.82)',
+            boxShadow: '0 1px 6px rgba(15, 23, 42, 0.12)',
+        },
+        '.cm-md-preview-action': {
+            width: '18px',
+            height: '18px',
+            padding: '0',
+            border: 'none',
+            borderRadius: '999px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '11px',
+            lineHeight: '1',
+            cursor: 'pointer',
+            userSelect: 'none',
+            color: '#f3f4f6',
+            backgroundColor: 'rgba(255, 255, 255, 0.08)',
+            transition: 'transform 0.15s ease, background-color 0.15s ease, color 0.15s ease',
+        },
+        '.cm-md-preview-action:hover': {
+            transform: 'translateY(-1px)',
+            backgroundColor: 'rgba(255, 255, 255, 0.16)',
+        },
+        '&light .cm-md-preview-action': {
+            color: '#1f2937',
+            backgroundColor: 'rgba(15, 23, 42, 0.06)',
+        },
+        '&light .cm-md-preview-action:hover': {
+            backgroundColor: 'rgba(15, 23, 42, 0.1)',
+        },
+        '.cm-md-preview-overlay': {
+            position: 'fixed',
+            inset: '0',
+            zIndex: '10000',
+        },
+        '.cm-md-preview-backdrop': {
+            position: 'absolute',
+            inset: '0',
+            backgroundColor: 'rgba(8, 11, 16, 0.72)',
+        },
+        '.cm-md-preview-panel': {
+            position: 'absolute',
+            inset: '5vh 5vw',
+            display: 'flex',
+            flexDirection: 'column',
+            borderRadius: '16px',
+            overflow: 'hidden',
+            backgroundColor: '#0f1115',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            boxShadow: '0 18px 60px rgba(0, 0, 0, 0.45)',
+        },
+        '&light .cm-md-preview-panel': {
+            backgroundColor: '#f8fafc',
+            border: '1px solid rgba(15, 23, 42, 0.1)',
+            boxShadow: '0 18px 60px rgba(15, 23, 42, 0.18)',
+        },
+        '.cm-md-preview-header': {
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '10px 12px',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+            color: '#d7dce3',
+            fontSize: '13px',
+        },
+        '&light .cm-md-preview-header': {
+            color: '#334155',
+            borderBottom: '1px solid rgba(15, 23, 42, 0.08)',
+        },
+        '.cm-md-preview-title': {
+            fontWeight: '600',
+            letterSpacing: '0.02em',
+        },
+        '.cm-md-preview-close': {
+            width: '24px',
+            height: '24px',
+            border: 'none',
+            borderRadius: '999px',
+            cursor: 'pointer',
+            fontSize: '18px',
+            lineHeight: '1',
+            backgroundColor: 'transparent',
+            color: 'inherit',
+        },
+        '.cm-md-preview-close:hover': {
+            backgroundColor: 'rgba(255, 255, 255, 0.08)',
+        },
+        '&light .cm-md-preview-close:hover': {
+            backgroundColor: 'rgba(15, 23, 42, 0.08)',
+        },
+        '.cm-md-preview-viewport': {
+            position: 'relative',
+            flex: '1 1 auto',
+            overflow: 'hidden',
+            touchAction: 'none',
+        },
+        '.cm-md-preview-stage': {
+            width: '100%',
+            height: '100%',
+            transformOrigin: 'center center',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        '.cm-md-preview-content': {
+            position: 'relative',
+            maxWidth: 'none',
+            maxHeight: 'none',
+        },
+        '.cm-md-preview-image': {
+            display: 'block',
+            maxWidth: 'none',
+            maxHeight: 'none',
+            userSelect: 'none',
+            pointerEvents: 'none',
+            borderRadius: '8px',
+            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.28)',
+        },
+        '.cm-md-preview-mermaid-rendered': {
+            display: 'inline-block',
+            padding: '20px',
+        },
+        '.cm-md-preview-mermaid-rendered svg': {
+            maxWidth: 'none',
+            height: 'auto',
+        },
+        '.cm-md-preview-fallback': {
+            color: '#94a3b8',
+            fontStyle: 'italic',
+            padding: '24px',
+        },
+        '&light .cm-md-preview-fallback': {
+            color: '#64748b',
+        },
+        '.cm-md-preview-error': {
+            color: '#f87171',
+        },
+        '.cm-md-preview-dragging': {
+            cursor: 'grabbing',
         },
 
         // =================================================================
