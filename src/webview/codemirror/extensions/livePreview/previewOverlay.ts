@@ -5,7 +5,14 @@
  * 设计目标是把“查看器”逻辑从 widget 渲染逻辑中拆出来，避免 widgets.ts 继续膨胀。
  */
 
-import { copyToClipboard, getMermaidTheme, mermaidInitialized, mermaidRenderPromises, mermaidSvgCache, setMermaidInitialized } from './state.js';
+import {
+    copyToClipboard,
+    getMermaidTheme,
+    mermaidInitialized,
+    mermaidRenderPromises,
+    mermaidSvgCache,
+    setMermaidInitialized,
+} from './state.js';
 
 /**
  * 预览浮层中图片查看器所需的信息。
@@ -17,6 +24,10 @@ export interface ImagePreviewOverlayOptions {
     resolvedUrl: string | null;
     /** 图片替代文本。 */
     altText: string;
+    /** 图片预览标题，缺省时由调用方或本模块回退生成。 */
+    titleText?: string | null;
+    /** 标题提交后的回写回调。 */
+    onTitleCommit?: (title: string) => void;
     /** 浮层挂载容器，用于继承 CodeMirror baseTheme 样式作用域。 */
     mountHost: HTMLElement;
 }
@@ -27,6 +38,10 @@ export interface ImagePreviewOverlayOptions {
 export interface MermaidPreviewOverlayOptions {
     /** Mermaid 源文本，用于渲染。 */
     source: string;
+    /** Mermaid 预览标题，缺省时显示占位文本。 */
+    titleText?: string | null;
+    /** 标题提交后的回写回调。 */
+    onTitleCommit?: (title: string) => void;
     /** 浮层挂载容器，用于继承 CodeMirror baseTheme 样式作用域。 */
     mountHost: HTMLElement;
 }
@@ -44,6 +59,49 @@ interface PreviewActionOptions {
     /** 按钮展示的符号。 */
     icon: string;
 }
+
+/**
+ * 浮层标题配置。
+ */
+interface PreviewTitleOptions {
+    /** 当前标题文本。 */
+    text: string | null;
+    /** 是否允许编辑标题。 */
+    editable: boolean;
+    /** 标题提交后的回调。 */
+    onCommit?: (title: string) => void;
+}
+
+/**
+ * 剪贴板图片条目的构造函数类型。
+ *
+ * 浏览器规范允许 ClipboardItem 的数据值是 Blob 或 Promise<Blob>，但部分 TypeScript DOM
+ * 类型版本没有完整声明 Promise 形态，因此在本模块内补齐最小可用类型。
+ */
+type ClipboardItemConstructorWithPromise = new (
+    items: Record<string, Blob | Promise<Blob>>
+) => ClipboardItem;
+
+/**
+ * 按钮组与状态条的映射。
+ *
+ * 用于在复制失败时给出可见提示，不必把状态逻辑散落到调用处。
+ */
+const previewActionStatusByGroup = new WeakMap<HTMLElement, HTMLElement>();
+
+/**
+ * 预览复制失败时显示的统一状态文案。
+ *
+ * 该文案用于图片与 Mermaid 预览的复制失败场景，保持提示简短且不过度打扰内容区域。
+ */
+const previewCopyFailureText = '复制失败';
+
+/**
+ * 预览标题的占位文本。
+ *
+ * 当没有可展示的名称时，使用这段文案提醒用户当前内容没有命名信息。
+ */
+const previewTitleFallbackText = '未命名预览';
 
 /**
  * 浮层根节点引用。
@@ -98,6 +156,40 @@ function flashButtonState(
         button.title = resetTitle;
         button.setAttribute('aria-label', resetTitle);
     }, 1200);
+}
+
+/**
+ * 显示按钮组的状态提示。
+ *
+ * @param group - 需要显示提示的按钮组
+ * @param text - 提示文案
+ * @param isError - 是否为错误态
+ * @returns void
+ */
+function showPreviewActionStatus(group: HTMLElement, text: string, isError: boolean): void {
+    const status = previewActionStatusByGroup.get(group);
+    if (!status) {
+        return;
+    }
+
+    if (!text) {
+        status.textContent = '';
+        status.hidden = true;
+        status.removeAttribute('data-state');
+        return;
+    }
+
+    status.textContent = text;
+    status.setAttribute('data-state', isError ? 'error' : 'info');
+    status.hidden = false;
+    window.clearTimeout(Number(status.dataset.hideTimer ?? '0'));
+    status.dataset.hideTimer = String(
+        window.setTimeout(() => {
+            status.hidden = true;
+            status.textContent = '';
+            status.removeAttribute('data-state');
+        }, 2400)
+    );
 }
 
 /**
@@ -157,9 +249,9 @@ async function copyImageSafely(imageUrl: string | null): Promise<boolean> {
 }
 
 /**
- * 将任意二进制图片内容复制到系统剪贴板。
+ * 将 Blob 图片复制到系统剪贴板。
  *
- * @param blob - 需要复制的图片二进制内容
+ * @param blob - 需要复制的图片 Blob
  * @returns 图片复制是否成功
  */
 async function copyBlobImageSafely(blob: Blob): Promise<boolean> {
@@ -174,6 +266,129 @@ async function copyBlobImageSafely(blob: Blob): Promise<boolean> {
     } catch {
         return false;
     }
+}
+
+/**
+ * 解析可展示的预览标题。
+ *
+ * @param explicitTitle - 调用方显式传入的标题
+ * @param fallbackTitle - 无显式标题时使用的回退文本
+ * @returns 可展示标题或回退文本
+ */
+function resolvePreviewTitle(explicitTitle: string | null | undefined, fallbackTitle: string): string {
+    const title = explicitTitle?.trim();
+    return title || fallbackTitle;
+}
+
+/**
+ * 从预览地址中提取一个可读的展示名称。
+ *
+ * 该名称用于图片预览标题的回退显示，尽量把路径、查询参数和锚点清理掉。
+ *
+ * @param sourceUrl - 原始预览地址
+ * @returns 可展示的文件名，提取失败时返回 null
+ */
+export function extractPreviewDisplayName(sourceUrl: string | null | undefined): string | null {
+    const trimmed = sourceUrl?.trim();
+    if (!trimmed) {
+        return null;
+    }
+
+    const withoutQuery = trimmed.split('?')[0];
+    const withoutHash = withoutQuery.split('#')[0];
+    const normalized = withoutHash.replace(/\\/g, '/');
+    const lastSegment = normalized.split('/').filter(Boolean).pop()?.trim();
+    if (!lastSegment) {
+        return null;
+    }
+
+    try {
+        return decodeURIComponent(lastSegment);
+    } catch {
+        return lastSegment;
+    }
+}
+
+/**
+ * 设置预览浮层标题节点内容。
+ *
+ * @param titleNode - 需要更新的标题节点
+ * @param titleText - 要展示的标题文本
+ * @param isPlaceholder - 是否为占位标题
+ * @returns void
+ */
+function setPreviewOverlayTitle(
+    titleNode: HTMLSpanElement,
+    titleText: string,
+): void {
+    titleNode.textContent = titleText;
+}
+
+/**
+ * 为可编辑的预览标题绑定输入与提交行为。
+ *
+ * 标题默认使用“失焦提交”的交互模式，避免在预览过程中反复写入源码。
+ * 当标题被清空时，会恢复为占位文本，并向回写回调提交空字符串。
+ *
+ * @param titleNode - 需要绑定编辑行为的标题节点
+ * @param title - 标题配置
+ * @returns void
+ */
+function bindEditablePreviewTitle(titleNode: HTMLSpanElement, title: PreviewTitleOptions): void {
+    if (!title.editable) {
+        return;
+    }
+
+    const normalizeTitleText = (): string => titleNode.textContent?.trim() ?? '';
+    let lastCommittedText = title.text?.trim() ?? '';
+    let dirty = false;
+
+    /**
+     * 提交当前编辑结果到外部回写回调。
+     *
+     * @returns void
+     */
+    const commitTitle = (): void => {
+        const nextText = normalizeTitleText();
+        if (!dirty && nextText === lastCommittedText) {
+            setPreviewOverlayTitle(titleNode, lastCommittedText);
+            return;
+        }
+
+        lastCommittedText = nextText;
+        dirty = false;
+        title.onCommit?.(nextText);
+        setPreviewOverlayTitle(titleNode, nextText);
+    };
+
+    titleNode.contentEditable = 'true';
+    titleNode.spellcheck = false;
+    titleNode.classList.add('cm-md-preview-title-editable');
+    titleNode.setAttribute('role', 'textbox');
+    titleNode.setAttribute('aria-label', '可编辑预览标题');
+    titleNode.addEventListener('focus', () => {
+        titleNode.textContent = normalizeTitleText();
+    });
+    titleNode.addEventListener('input', () => {
+        dirty = true;
+    });
+    titleNode.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            titleNode.blur();
+            return;
+        }
+
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            dirty = false;
+            setPreviewOverlayTitle(titleNode, lastCommittedText);
+            titleNode.blur();
+        }
+    });
+    titleNode.addEventListener('blur', () => {
+        commitTitle();
+    });
 }
 
 /**
@@ -204,71 +419,117 @@ function readSvgCanvasSize(svg: string): { width: number; height: number } {
 }
 
 /**
- * 将 SVG 字符串转换为 PNG 图片二进制。
+ * 为 SVG 补齐适合浏览器加载的基础命名空间。
  *
  * @param svg - Mermaid 渲染得到的 SVG 字符串
- * @returns PNG 图片二进制
+ * @returns 补齐后的 SVG 字符串
+ */
+function normalizeSvgMarkup(svg: string): string {
+    if (svg.includes('xmlns=')) {
+        return svg;
+    }
+
+    return svg.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+}
+
+/**
+ * 将 SVG 字符串转换为 PNG 图片 Blob。
+ *
+ * @param svg - Mermaid 渲染得到的 SVG 字符串
+ * @returns 转换后的 PNG Blob
  */
 async function convertSvgToPngBlob(svg: string): Promise<Blob> {
-    const svgBlob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
-    const svgUrl = URL.createObjectURL(svgBlob);
-    const fallbackSize = readSvgCanvasSize(svg);
+    const normalizedSvg = normalizeSvgMarkup(svg);
+    const size = readSvgCanvasSize(normalizedSvg);
+    const encodedSvg = encodeURIComponent(normalizedSvg)
+        .replace(/'/g, '%27')
+        .replace(/"/g, '%22');
+    const svgUrl = `data:image/svg+xml;charset=utf-8,${encodedSvg}`;
+    const canvas = document.createElement('canvas');
+    canvas.width = size.width;
+    canvas.height = size.height;
+    const context = canvas.getContext('2d');
+
+    if (!context) {
+        throw new Error('canvas 2d context unavailable');
+    }
 
     try {
         const image = new Image();
         image.decoding = 'async';
-        const imageLoaded = new Promise<void>((resolve, reject) => {
-            image.onload = () => resolve();
-            image.onerror = () => reject(new Error('svg image load failed'));
-        });
         image.src = svgUrl;
-        await imageLoaded;
+        await new Promise<void>((resolve, reject) => {
+            image.onload = () => resolve();
+            image.onerror = () => reject(new Error('failed to load svg image'));
+        });
 
-        const canvas = document.createElement('canvas');
-        const width = Math.max(1, Math.ceil(image.naturalWidth || image.width || fallbackSize.width));
-        const height = Math.max(1, Math.ceil(image.naturalHeight || image.height || fallbackSize.height));
-        canvas.width = width;
-        canvas.height = height;
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
 
-        const context = canvas.getContext('2d');
-        if (!context) {
-            throw new Error('canvas context unavailable');
-        }
-
-        context.fillStyle = getMermaidTheme() === 'dark' ? '#1f2020' : '#ffffff';
-        context.fillRect(0, 0, width, height);
-        context.drawImage(image, 0, 0);
-
-        return await new Promise<Blob>((resolve, reject) => {
-            canvas.toBlob((blob) => {
-                if (blob) {
-                    resolve(blob);
-                } else {
-                    reject(new Error('png blob unavailable'));
+        const pngBlob = await new Promise<Blob>((resolve, reject) => {
+            canvas.toBlob((result) => {
+                if (result) {
+                    resolve(result);
+                    return;
                 }
+                reject(new Error('canvas toBlob returned null'));
             }, 'image/png');
         });
-    } finally {
-        URL.revokeObjectURL(svgUrl);
+
+        return pngBlob;
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        throw new Error(`failed to convert svg to png: ${errorMessage}`);
     }
 }
 
 /**
- * 将 Mermaid 渲染后的 SVG 图像复制到系统剪贴板。
+ * 将 Mermaid 已渲染的 SVG 节点复制到系统剪贴板。
  *
- * @param source - Mermaid 源文本
- * @returns 图像复制是否成功
+ * 这个实现直接读取当前 DOM 中已经显示出来的图表，避免在点击时重新渲染或转码，
+ * 以免丢失浏览器对剪贴板写入所需的用户激活。
+ * 复制内容优先使用 PNG 图片，并保留纯文本 SVG 作为回退。
+ *
+ * @param renderedRoot - 包含 Mermaid SVG 的容器节点
+ * @returns 复制是否成功
  */
-export async function copyMermaidRenderedImageSafely(source: string): Promise<boolean> {
+export async function copyMermaidRenderedImageSafely(renderedRoot: ParentNode): Promise<boolean> {
     try {
-        const svg = await renderMermaidSource(source);
-        const blob = await convertSvgToPngBlob(svg);
-        if (await copyBlobImageSafely(blob)) {
-            return true;
+        const svgElement = renderedRoot.querySelector('svg');
+        if (!svgElement) {
+            console.debug('[FlowMD] Mermaid copy aborted: SVG element not found');
+            return false;
         }
 
-        return false;
-    } catch {
+        const svg = new XMLSerializer().serializeToString(svgElement);
+        console.debug(`[FlowMD] Mermaid copy found SVG, length=${svg.length}`);
+        try {
+            if (navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
+                const clipboardItemFactory = ClipboardItem as ClipboardItemConstructorWithPromise;
+                const pngBlobPromise = convertSvgToPngBlob(svg);
+                await navigator.clipboard.write([
+                    new clipboardItemFactory({
+                        'image/png': pngBlobPromise,
+                        'text/plain': new Blob([svg], { type: 'text/plain;charset=utf-8' }),
+                    }),
+                ]);
+                console.debug('[FlowMD] Mermaid PNG copy result: success');
+                return true;
+            }
+
+            const success = await copyTextSafely(svg);
+            console.debug(`[FlowMD] Mermaid PNG copy fallback text result: ${success ? 'success' : 'failed'}`);
+            return success;
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.debug(`[FlowMD] Mermaid PNG copy failed, fallback to text: ${errorMessage}`);
+            return copyTextSafely(svg);
+        }
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.debug(`[FlowMD] Mermaid copy failed in webview: ${errorMessage}`);
         return false;
     }
 }
@@ -286,21 +547,18 @@ function createPreviewActionButton(options: PreviewActionOptions): HTMLButtonEle
     button.textContent = options.icon;
     button.title = options.title;
     button.setAttribute('aria-label', options.ariaLabel);
-    let handledByMouseDown = false;
+    let suppressNextClick = false;
 
-    button.addEventListener('mousedown', (event) => {
+    button.addEventListener('pointerdown', (event) => {
         event.preventDefault();
         event.stopPropagation();
         event.stopImmediatePropagation();
 
-        if (event.button !== 0) {
+        if (event.pointerType === 'mouse' && event.button !== 0) {
             return;
         }
 
-        handledByMouseDown = true;
-        window.setTimeout(() => {
-            handledByMouseDown = false;
-        }, 0);
+        suppressNextClick = true;
         void Promise.resolve(options.onClick());
     });
 
@@ -309,7 +567,8 @@ function createPreviewActionButton(options: PreviewActionOptions): HTMLButtonEle
         event.stopPropagation();
         event.stopImmediatePropagation();
 
-        if (handledByMouseDown) {
+        if (suppressNextClick) {
+            suppressNextClick = false;
             return;
         }
 
@@ -337,6 +596,12 @@ export function createPreviewActionGroup(
     const group = document.createElement('div');
     group.className = 'cm-md-preview-actions';
 
+    const status = document.createElement('div');
+    status.className = 'cm-md-preview-action-status';
+    status.hidden = true;
+    group.appendChild(status);
+    previewActionStatusByGroup.set(group, status);
+
     const expandButton = createPreviewActionButton({
         title: expandTitle,
         ariaLabel: expandTitle,
@@ -352,8 +617,10 @@ export function createPreviewActionGroup(
         onClick: async () => {
             const success = await Promise.resolve(onCopy()).then(() => true, () => false);
             if (success) {
+                showPreviewActionStatus(group, '已复制', false);
                 flashButtonState(copyButton, '✓', '已复制', '⧉', copyTitle);
             } else {
+                showPreviewActionStatus(group, previewCopyFailureText, true);
                 flashButtonState(copyButton, '!', '复制失败', '⧉', copyTitle);
             }
         },
@@ -519,7 +786,7 @@ function attachPanZoom(viewport: HTMLElement, stage: HTMLElement): {
  * @param onClose - 关闭回调
  * @returns 浮层所需的关键 DOM 节点
  */
-function createOverlayShell(title: string, onClose: () => void): {
+function createOverlayShell(title: PreviewTitleOptions, onClose: () => void): {
     /** 浮层根节点。 */
     root: HTMLElement;
     /** 浮层内容可视区。 */
@@ -548,7 +815,8 @@ function createOverlayShell(title: string, onClose: () => void): {
 
     const titleNode = document.createElement('span');
     titleNode.className = 'cm-md-preview-title';
-    titleNode.textContent = title;
+    setPreviewOverlayTitle(titleNode, title.text ?? '');
+    bindEditablePreviewTitle(titleNode, title);
     header.appendChild(titleNode);
 
     const closeButton = document.createElement('button');
@@ -604,12 +872,20 @@ export function openImagePreviewOverlay(options: ImagePreviewOverlayOptions): vo
     closeActivePreviewOverlay();
 
     const cleanupBag: Array<() => void> = [];
-    const overlay = createOverlayShell('图片预览', () => {
-        for (const cleanup of cleanupBag.reverse()) {
-            cleanup();
+    const imageDisplayName = options.titleText?.trim() || options.altText?.trim() || extractPreviewDisplayName(options.rawUrl);
+    const imageTitleText = imageDisplayName || previewTitleFallbackText;
+    const overlay = createOverlayShell(
+        {
+            text: imageTitleText,
+            editable: false,
+        },
+        () => {
+            for (const cleanup of cleanupBag.reverse()) {
+                cleanup();
+            }
+            closeActivePreviewOverlay();
         }
-        closeActivePreviewOverlay();
-    });
+    );
 
     const close = overlay.root;
     cleanupBag.push(() => close.remove());
@@ -644,12 +920,14 @@ export function openImagePreviewOverlay(options: ImagePreviewOverlayOptions): vo
             throw new Error('image url not resolved');
         }
 
-        const response = await fetch(resolvedUrl);
-        if (!response.ok) {
-            throw new Error('image fetch failed');
-        }
+        const blob = await fetch(resolvedUrl).then(async (response) => {
+            if (!response.ok) {
+                throw new Error('image fetch failed');
+            }
+            return response.blob();
+        });
 
-        const success = await copyBlobImageSafely(await response.blob());
+        const success = await copyBlobImageSafely(blob);
         if (!success) {
             throw new Error('copy failed');
         }
@@ -671,12 +949,18 @@ export function openMermaidPreviewOverlay(options: MermaidPreviewOverlayOptions)
     closeActivePreviewOverlay();
 
     const cleanupBag: Array<() => void> = [];
-    const overlay = createOverlayShell('Mermaid 预览', () => {
-        for (const cleanup of cleanupBag.reverse()) {
-            cleanup();
+    const overlay = createOverlayShell(
+        {
+            text: resolvePreviewTitle(options.titleText, previewTitleFallbackText),
+            editable: false,
+        },
+        () => {
+            for (const cleanup of cleanupBag.reverse()) {
+                cleanup();
+            }
+            closeActivePreviewOverlay();
         }
-        closeActivePreviewOverlay();
-    });
+    );
 
     const root = overlay.root;
     activeOverlayRoot = root;
@@ -688,7 +972,7 @@ export function openMermaidPreviewOverlay(options: MermaidPreviewOverlayOptions)
     cleanupBag.push(panZoom.cleanup);
 
     const actions = createPreviewActionGroup('放大图表', '复制 Mermaid 图', panZoom.zoomIn, async () => {
-        const success = await copyMermaidRenderedImageSafely(options.source);
+        const success = await copyMermaidRenderedImageSafely(contentHost);
         if (!success) {
             throw new Error('copy failed');
         }

@@ -105,20 +105,32 @@ const vscode: IVsCodeApi = acquireVsCodeApi();
 setPostMessage((message: unknown) => vscode.postMessage(message));
 
 // =============================================================================
-// Console Log Forwarding
+// 控制台日志转发
 // =============================================================================
 
 /**
- * Hook console.debug/error/warn to forward [FlowMD] prefixed logs
- * to Extension via postMessage for Output Channel output.
- * This captures debug logs from livePreview.ts and other modules
- * without requiring explicit sendLog() calls.
+ * Webview 控制台镜像开关。
+ *
+ * 正式打包场景默认保持关闭，避免把调试信息持续写入 Webview 控制台。
+ * 需要调试时，可以在开发构建里临时打开此开关。
  */
-const _origDebug = console.debug;
-const _origError = console.error;
-const _origWarn = console.warn;
+const SHOULD_MIRROR_WEBVIEW_CONSOLE = false;
 
-function forwardLog(level: 'DEBUG' | 'ERROR' | 'WARN', args: unknown[]): void {
+/**
+ * 将 Webview 侧日志转成可发送到扩展侧的消息。
+ *
+ * 当控制台镜像开关关闭时，只保留错误和告警的消息桥接，
+ * 避免正式包把 INFO / DEBUG 级别日志带到输出面板。
+ *
+ * @param level - 日志级别
+ * @param args - 控制台原始参数
+ * @returns void
+ */
+function forwardLog(level: 'DEBUG' | 'ERROR' | 'WARN' | 'INFO', args: unknown[]): void {
+    if (!SHOULD_MIRROR_WEBVIEW_CONSOLE && level !== 'ERROR' && level !== 'WARN') {
+        return;
+    }
+
     const msg = args
         .map((a) => (typeof a === 'object' ? JSON.stringify(a, null, 0) : String(a)))
         .join(' ');
@@ -127,17 +139,34 @@ function forwardLog(level: 'DEBUG' | 'ERROR' | 'WARN', args: unknown[]): void {
     }
 }
 
+const _origDebug = console.debug;
+const _origLog = console.log;
+const _origError = console.error;
+const _origWarn = console.warn;
+
 console.debug = (...args: unknown[]) => {
-    _origDebug.apply(console, args);
-    forwardLog('DEBUG', args);
+    if (SHOULD_MIRROR_WEBVIEW_CONSOLE) {
+        _origDebug.apply(console, args);
+        forwardLog('DEBUG', args);
+    }
+};
+console.log = (...args: unknown[]) => {
+    if (SHOULD_MIRROR_WEBVIEW_CONSOLE) {
+        _origLog.apply(console, args);
+        forwardLog('INFO', args);
+    }
 };
 console.error = (...args: unknown[]) => {
     _origError.apply(console, args);
-    forwardLog('ERROR', args);
+    if (SHOULD_MIRROR_WEBVIEW_CONSOLE) {
+        forwardLog('ERROR', args);
+    }
 };
 console.warn = (...args: unknown[]) => {
-    _origWarn.apply(console, args);
-    forwardLog('WARN', args);
+    if (SHOULD_MIRROR_WEBVIEW_CONSOLE) {
+        _origWarn.apply(console, args);
+        forwardLog('WARN', args);
+    }
 };
 
 /**
@@ -287,21 +316,23 @@ function syncOutlineActiveLine(): void {
 // =============================================================================
 
 /**
- * Send log message to Extension for file logging.
+ * 向扩展侧发送 Webview 日志。
  *
- * @param level - Log level (DEBUG, INFO, ERROR)
- * @param msg - Log message
+ * @param level - 日志级别。
+ * @param msg - 日志内容。
+ * @returns void
  */
 function sendLog(level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR', msg: string): void {
-    vscode.postMessage({ type: 'webviewLog', level, msg });
-    // Also log to console
+    if (level === 'ERROR' || level === 'WARN' || SHOULD_MIRROR_WEBVIEW_CONSOLE) {
+        vscode.postMessage({ type: 'webviewLog', level, msg });
+    }
+
+    // 正式包默认不把普通信息回写到 Webview 控制台，只保留错误。
     if (level === 'ERROR') {
         console.error(`[FlowMD Webview] ${msg}`);
-    } else if (level === 'WARN') {
+    } else if (level === 'WARN' && SHOULD_MIRROR_WEBVIEW_CONSOLE) {
         console.warn(`[FlowMD Webview] ${msg}`);
-    } else if (level === 'DEBUG') {
-        console.debug(`[FlowMD Webview] ${msg}`);
-    } else {
+    } else if (SHOULD_MIRROR_WEBVIEW_CONSOLE) {
         console.log(`[FlowMD Webview] ${msg}`);
     }
 }

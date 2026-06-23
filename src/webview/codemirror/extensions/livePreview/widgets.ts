@@ -1,7 +1,8 @@
 /**
- * Live Preview Widgets
+ * 直播预览 Widget 集合。
  *
- * All CodeMirror WidgetType subclasses for rendering Markdown elements.
+ * 这个文件集中承载 Markdown 各类渲染 Widget 的实现，避免单个文件继续膨胀。
+ * Mermaid 预览相关的复制入口会复用预览浮层中的统一实现。
  *
  * @module webview/codemirror/extensions/livePreview/widgets
  */
@@ -26,8 +27,8 @@ import {
     widgetHeightCache,
 } from './state.js';
 import {
-    copyMermaidRenderedImageSafely,
     createPreviewActionGroup,
+    copyMermaidRenderedImageSafely,
     openImagePreviewOverlay,
     openMermaidPreviewOverlay,
 } from './previewOverlay.js';
@@ -203,7 +204,14 @@ export class ImageWidget extends WidgetType {
     /** 图片原始地址。 */
     constructor(
         private url: string,
-        private alt: string
+        /** 图片替代文本。 */
+        private alt: string,
+        /** 图片在源码中的位置范围。 */
+        private sourceFrom: number,
+        /** 图片在源码中的结束位置。 */
+        private sourceTo: number,
+        /** 图片标题提交后的回写函数。 */
+        private onTitleCommit: ((title: string) => void) | null = null
     ) {
         super();
     }
@@ -269,6 +277,8 @@ export class ImageWidget extends WidgetType {
                     rawUrl: this.url,
                     resolvedUrl,
                     altText: this.alt,
+                    titleText: this.alt || null,
+                    onTitleCommit: this.onTitleCommit ?? undefined,
                     mountHost: view.dom,
                 });
             },
@@ -1103,13 +1113,23 @@ export class TableWidget extends WidgetType {
 // =============================================================================
 
 /**
- * Widget that renders a Mermaid diagram.
+ * Mermaid 预览 Widget。
+ *
+ * 这个 Widget 负责在正文中渲染 Mermaid 图表，并挂载放大与复制按钮。
+ * 复制按钮会复用统一复制入口，把当前渲染出的 SVG 作为纯文本复制。
  */
 export class MermaidWidget extends WidgetType {
     /** Mermaid 源文本。 */
     constructor(
         private source: string,
-        private isDark: boolean
+        /** 是否使用深色 Mermaid 主题。 */
+        private isDark: boolean,
+        /** Mermaid 在源码中的起始位置。 */
+        private sourceFrom: number,
+        /** Mermaid 在源码中的结束位置。 */
+        private sourceTo: number,
+        /** Mermaid 标题提交后的回写函数。 */
+        private onTitleCommit: ((title: string) => void) | null = null
     ) {
         super();
     }
@@ -1146,11 +1166,13 @@ export class MermaidWidget extends WidgetType {
             () => {
                 openMermaidPreviewOverlay({
                     source: this.source,
+                    titleText: null,
+                    onTitleCommit: this.onTitleCommit ?? undefined,
                     mountHost: view.dom,
                 });
             },
             async () => {
-                const success = await copyMermaidRenderedImageSafely(this.source);
+                const success = await copyMermaidRenderedImageSafely(contentHost);
                 if (!success) {
                     throw new Error('copy failed');
                 }

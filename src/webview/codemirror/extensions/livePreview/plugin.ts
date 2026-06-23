@@ -63,6 +63,94 @@ import {
     TableWidget,
 } from './widgets.js';
 
+/**
+ * 使用源文本中的范围替换指定区间内容。
+ *
+ * 这个 helper 统一封装 WorkspaceEdit 风格的文本替换操作，避免在各个 widget
+ * 回写入口里重复拼接 dispatch 细节。
+ *
+ * @param view - 当前 CodeMirror 视图
+ * @param from - 需要替换的起始位置
+ * @param to - 需要替换的结束位置
+ * @param insert - 需要写回的新文本
+ * @returns void
+ */
+function replaceSourceRange(view: EditorView, from: number, to: number, insert: string): void {
+    if (from >= to) {
+        return;
+    }
+
+    if (view.state.sliceDoc(from, to) === insert) {
+        return;
+    }
+
+    view.dispatch({
+        changes: { from, to, insert },
+    });
+}
+
+/**
+ * 回写 Markdown 图片语法中的 alt 文本。
+ *
+ * 该函数兼容 wiki 图片和标准 Markdown 图片两种写法：
+ * - wiki 图片：`![[target|alias]]`
+ * - Markdown 图片：`![alt](url)`
+ *
+ * @param view - 当前 CodeMirror 视图
+ * @param from - 图片语法起始位置
+ * @param to - 图片语法结束位置
+ * @param rawImageText - 图片块的原始文本
+ * @param nextTitle - 用户提交的新标题
+ * @returns void
+ */
+function updateImageTitleInSource(
+    view: EditorView,
+    from: number,
+    to: number,
+    rawImageText: string,
+    nextTitle: string
+): void {
+    const wikiMatch = rawImageText.match(/^!\[\[([^\]\n]+?)\]\]$/);
+    if (wikiMatch) {
+        const [rawTarget] = wikiMatch[1].split('|', 2);
+        const title = nextTitle.trim();
+        const nextValue = title ? `![[${rawTarget.trim()}|${title}]]` : `![[${rawTarget.trim()}]]`;
+        replaceSourceRange(view, from, to, nextValue);
+        return;
+    }
+
+    const markdownMatch = rawImageText.match(/^!\[([^\]]*?)\]\(([^)\n]+)\)$/);
+    if (markdownMatch) {
+        const destination = markdownMatch[2];
+        const title = nextTitle.trim();
+        const nextValue = `![${title}](${destination})`;
+        replaceSourceRange(view, from, to, nextValue);
+    }
+}
+
+/**
+ * 回写 Mermaid 代码块的标题文本。
+ *
+ * 这里采用 fenced code block info 行的扩展写法：
+ * `mermaid` 后面允许追加一个标题词组，便于在预览标题中编辑后同步保存。
+ *
+ * @param view - 当前 CodeMirror 视图
+ * @param codeInfoFrom - CodeInfo 节点起始位置
+ * @param lineTo - 当前 fenced code opener 行尾部位置
+ * @param nextTitle - 用户提交的新标题
+ * @returns void
+ */
+function updateMermaidTitleInSource(
+    view: EditorView,
+    codeInfoFrom: number,
+    lineTo: number,
+    nextTitle: string
+): void {
+    const title = nextTitle.trim();
+    const nextValue = title ? `mermaid ${title}` : 'mermaid';
+    replaceSourceRange(view, codeInfoFrom, lineTo, nextValue);
+}
+
 // =============================================================================
 // Post-Processing Functions (extracted from buildDecorations)
 // =============================================================================
@@ -781,17 +869,30 @@ function buildDecorations(state: EditorState): DecorationSet {
                 }
 
                 case 'FencedCode': {
-                    const language = extractFencedCodeLanguage(nodeRef.node, state);
+                    const syntaxNode = nodeRef.node;
+                    const language = extractFencedCodeLanguage(syntaxNode, state);
                     if (language === 'mermaid') {
-                        const content = extractFencedCodeContent(nodeRef.node, state);
+                        const content = extractFencedCodeContent(syntaxNode, state);
                         if (content) {
                             const firstLine = state.doc.lineAt(from);
                             const endLine = state.doc.lineAt(to);
+                            const codeInfoNode = syntaxNode.getChild('CodeInfo');
+                            const codeInfoFrom = codeInfoNode ? codeInfoNode.from : firstLine.from + 3;
                             decos.push(
                                 Decoration.replace({
                                     widget: new MermaidWidget(
                                         content,
-                                        state.facet(EditorView.darkTheme)
+                                        state.facet(EditorView.darkTheme),
+                                        firstLine.from,
+                                        endLine.to,
+                                        (nextTitle: string) => {
+                                            updateMermaidTitleInSource(
+                                                view,
+                                                codeInfoFrom,
+                                                firstLine.to,
+                                                nextTitle
+                                            );
+                                        }
                                     ),
                                     block: true,
                                 }).range(firstLine.from, endLine.to)
@@ -977,7 +1078,21 @@ function buildDecorations(state: EditorState): DecorationSet {
                     if (imgUrl || altText) {
                         decos.push(
                             Decoration.replace({
-                                widget: new ImageWidget(imgUrl, altText),
+                                widget: new ImageWidget(
+                                    imgUrl,
+                                    altText,
+                                    from,
+                                    to,
+                                    (nextTitle: string) => {
+                                        updateImageTitleInSource(
+                                            view,
+                                            from,
+                                            to,
+                                            imgText,
+                                            nextTitle
+                                        );
+                                    }
+                                ),
                             }).range(from, to)
                         );
                     }
