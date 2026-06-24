@@ -369,8 +369,19 @@ export class CodeMirrorEditor {
                 // Focus support for Viewer Mode (editable: false)
                 // When contenteditable=false, clicking doesn't grant focus to the editor.
                 // VS Code requires webview focus to activate the editor tab.
-                mousedown(_event: MouseEvent, view: EditorView) {
+                // 但搜索面板和表单控件需要保留自身焦点，不能被正文编辑器强行接管。
+                mousedown(event: MouseEvent, view: EditorView) {
                     if (!view.state.facet(EditorView.editable)) {
+                        const target = event.target;
+                        if (
+                            target instanceof Element &&
+                            target.closest(
+                                '.cm-search, input, textarea, select, button, [contenteditable="true"]'
+                            )
+                        ) {
+                            return false;
+                        }
+
                         if (!view.dom.hasAttribute('tabindex')) {
                             view.dom.setAttribute('tabindex', '0');
                         }

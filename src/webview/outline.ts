@@ -115,7 +115,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * 规范化标题文本，去掉尾部标记和多余空白。
+ * 规范化标题文本，去掉尾部标记、内联 HTML 标签和多余空白。
  *
  * @param text - 原始标题文本。
  * @returns 清洗后的标题文本。

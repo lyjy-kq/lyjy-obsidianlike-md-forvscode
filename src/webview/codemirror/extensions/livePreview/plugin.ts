@@ -285,8 +285,13 @@ function collectDetailsDecorations(
 }
 
 /**
- * Collect math (KaTeX) decorations.
- * Handles block math ($$...$$) and inline math ($...$).
+ * 收集数学公式对应的 KaTeX 装饰。
+ *
+ * @param state - 当前编辑器状态
+ * @param decos - 待写入的装饰数组
+ * @param focusedRange - 当前正在编辑的聚焦区间
+ * @param tree - 当前语法树
+ * @returns void
  */
 function collectMathDecorations(
     state: EditorState,
@@ -307,8 +312,8 @@ function collectMathDecorations(
         );
     };
 
-    // Pre-compiled regex (avoids re-creation per line)
-    const inlineRegex = /(?<!\$)\$(?!\$)(?!\s)(.+?)(?<!\s|\$)\$(?!\$|\d)/g;
+    // 预编译行内公式正则，允许分隔符内外出现常见空格。
+    const inlineRegex = /(?<!\$)\$(?!\$)\s*(.+?)\s*\$(?!\$|\d)/g;
 
     for (let ln = 1; ln <= state.doc.lines; ln++) {
         const line = state.doc.line(ln);
@@ -318,33 +323,34 @@ function collectMathDecorations(
         }
 
         const lineText = line.text;
+        const trimmedLine = lineText.trim();
 
-        // Quick skip: lines without $ can't contain math
+        // 没有美元符号的行不可能包含数学公式，直接跳过。
         if (!lineText.includes('$')) continue;
 
-        // Skip lines inside code blocks
+        // 代码块内不做数学公式渲染，避免误伤源码。
         if (isInsideCode(line.from)) continue;
 
-        // Block math: $$ at start of line
-        if (lineText.trimStart().startsWith('$$')) {
-            // Same-line block math: $$...$$
-            const sameLineMatch = lineText.match(/^\s*\$\$(.+?)\$\$/);
-            if (sameLineMatch) {
-                const tex = sameLineMatch[1].trim();
-                if (tex) {
-                    decos.push(
-                        Decoration.replace({
-                            widget: new BlockMathWidget(tex),
-                        }).range(line.from, line.to)
-                    );
-                }
-                continue;
+        // 同行块级公式：只有整行都由 $$ 包围时，才保留块级渲染。
+        const sameLineMatch = lineText.match(/^\s*\$\$\s*(.+?)\s*\$\$\s*$/);
+        if (sameLineMatch) {
+            const tex = sameLineMatch[1].trim();
+            if (tex) {
+                decos.push(
+                    Decoration.replace({
+                        widget: new BlockMathWidget(tex),
+                    }).range(line.from, line.to)
+                );
             }
-            // Multi-line block math
+            continue;
+        }
+
+        // 多行块级公式：只有整行是 $$ 时才继续向下寻找闭合行。
+        if (trimmedLine === '$$') {
             let closingLn = ln + 1;
             let found = false;
             while (closingLn <= state.doc.lines) {
-                if (state.doc.line(closingLn).text.trimStart().startsWith('$$')) {
+                if (/^\s*\$\$\s*$/.test(state.doc.line(closingLn).text)) {
                     found = true;
                     break;
                 }
@@ -372,7 +378,25 @@ function collectMathDecorations(
             continue;
         }
 
-        // Inline math: $...$ (not $$)
+        // 同行 display 公式：允许出现在普通文本或列表项中。
+        const embeddedBlockRegex = /(?<!\$)\$\$\s*(.+?)\s*\$\$(?!\$)/g;
+        embeddedBlockRegex.lastIndex = 0;
+        let embeddedBlockMatch: RegExpExecArray | null;
+        while ((embeddedBlockMatch = embeddedBlockRegex.exec(lineText)) !== null) {
+            const tex = embeddedBlockMatch[1];
+            if (!tex.trim()) continue;
+            const mathFrom = line.from + embeddedBlockMatch.index;
+            const mathTo = mathFrom + embeddedBlockMatch[0].length;
+            if (mathFrom < focusedRange.to && mathTo > focusedRange.from) continue;
+            if (isInsideCode(mathFrom)) continue;
+            decos.push(
+                Decoration.replace({
+                    widget: new InlineMathWidget(tex),
+                }).range(mathFrom, mathTo)
+            );
+        }
+
+        // 行内公式：允许 $ 与内容之间留空格，但仍排除 $$。
         inlineRegex.lastIndex = 0;
         let match: RegExpExecArray | null;
         while ((match = inlineRegex.exec(lineText)) !== null) {
@@ -381,7 +405,7 @@ function collectMathDecorations(
             const mathFrom = line.from + match.index;
             const mathTo = mathFrom + match[0].length;
             if (mathFrom < focusedRange.to && mathTo > focusedRange.from) continue;
-            // Skip $ inside inline code spans (e.g., `$100`)
+            // 行内代码片段中的美元符号不参与公式渲染。
             if (isInsideCode(mathFrom)) continue;
             decos.push(
                 Decoration.replace({

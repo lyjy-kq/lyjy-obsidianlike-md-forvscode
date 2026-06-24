@@ -49,16 +49,16 @@ function renderMath(tex: string, displayMode: boolean): string {
 }
 
 /**
- * Extract math expressions from Markdown, replacing them with placeholders.
- * Returns the modified Markdown and a list of placeholders for restoration.
+ * 从 Markdown 中提取数学公式，并用占位符暂存渲染结果。
  *
- * Block math: $$...$$ (single or multi-line)
- * Inline math: $...$ (not $$, not currency like $14.99)
+ * @param markdown - 原始 Markdown 文本
+ * @returns 处理后的正文与公式占位符列表
  */
 function extractMath(markdown: string): { text: string; placeholders: MathPlaceholder[] } {
     const placeholders: MathPlaceholder[] = [];
     let idx = 0;
 
+    // 生成占位符并记录对应的公式渲染 HTML，后续再回填。
     function makePlaceholder(html: string): string {
         const ph = `%%MATH_PH_${idx++}%%`;
         placeholders.push({ placeholder: ph, html });
@@ -87,23 +87,22 @@ function extractMath(markdown: string): { text: string; placeholders: MathPlaceh
             continue;
         }
 
-        // Block math: $$ on its own line
-        if (line.trimStart().startsWith('$$')) {
-            // Same-line block math: $$...$$
-            const sameLineMatch = line.match(/^\s*\$\$(.+?)\$\$/);
-            if (sameLineMatch) {
-                const tex = sameLineMatch[1].trim();
-                const html = `<div class="math-block">${renderMath(tex, true)}</div>`;
-                result.push(makePlaceholder(html));
-                i++;
-                continue;
-            }
+        // 同行块级公式：只有整行都被 $$ 包围时，才保留块级渲染。
+        const sameLineMatch = line.match(/^\s*\$\$\s*(.+?)\s*\$\$\s*$/);
+        if (sameLineMatch) {
+            const tex = sameLineMatch[1].trim();
+            const html = `<div class="math-block">${renderMath(tex, true)}</div>`;
+            result.push(makePlaceholder(html));
+            i++;
+            continue;
+        }
 
-            // Multi-line block math
+        // 多行块级公式：只有整行是 $$ 时才继续向下查找闭合行。
+        if (line.trim() === '$$') {
             let closingIdx = i + 1;
             let found = false;
             while (closingIdx < lines.length) {
-                if (lines[closingIdx].trimStart().startsWith('$$')) {
+                if (/^\s*\$\$\s*$/.test(lines[closingIdx])) {
                     found = true;
                     break;
                 }
@@ -126,12 +125,21 @@ function extractMath(markdown: string): { text: string; placeholders: MathPlaceh
             continue;
         }
 
-        // Inline math: $...$ (not $$, not currency)
-        const processed = line.replace(
-            /(?<!\$)\$(?!\$)(?!\s)(.+?)(?<!\s|\$)\$(?!\$|\d)/g,
+        // 同行 display 公式：允许出现在普通文本或列表项中。
+        const withBlockMath = line.replace(
+            /(?<!\$)\$\$\s*(.+?)\s*\$\$(?!\$)/g,
+            (_match, tex: string) => {
+                const html = `<span class="math-inline">${renderMath(tex, false)}</span>`;
+                return makePlaceholder(html);
+            }
+        );
+
+        // 行内公式：允许 $ 与内容之间有空格，但仍排除 $$ 形式。
+        const processed = withBlockMath.replace(
+            /(?<!\$)\$(?!\$)\s*(.+?)\s*\$(?!\$|\d)/g,
             (_match, tex: string) => {
                 if (!tex.trim()) return _match;
-                // Skip if inside inline code
+                // 行内代码中的美元符号不参与公式渲染。
                 const html = `<span class="math-inline">${renderMath(tex, false)}</span>`;
                 return makePlaceholder(html);
             }

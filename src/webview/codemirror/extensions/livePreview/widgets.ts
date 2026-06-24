@@ -9,7 +9,11 @@
 
 import { Transaction } from '@codemirror/state';
 import { EditorView, WidgetType } from '@codemirror/view';
-import { applyAlignment, renderInlineMarkdown, resolvePreviewImageUrl } from './helpers.js';
+import {
+    applyAlignment,
+    renderInlineMarkdown,
+    resolvePreviewImageUrl,
+} from './helpers.js';
 import {
     copyToClipboard,
     foldedListItems,

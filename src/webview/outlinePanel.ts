@@ -645,9 +645,10 @@ export class OutlinePanel {
     }
 
     /**
-     * 娓呮礂鏍囬鏂囨湰銆?     *
-     * @param text - 鍘熷鏍囬鏂囨湰
-     * @returns 娓呮礂鍚庣殑鏂囨湰
+     * 清理标题文本，去掉尾部标记、内联 HTML 标签和多余空白。
+     *
+     * @param text - 原始标题文本。
+     * @returns 清理后的标题文本。
      */
     private normalizeHeadingText(text: string): string {
         return text

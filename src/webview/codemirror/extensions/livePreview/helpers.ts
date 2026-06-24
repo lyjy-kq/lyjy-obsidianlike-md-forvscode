@@ -1,8 +1,9 @@
 /**
  * Live Preview Helpers
  *
- * Utility functions for table parsing, inline markdown rendering,
- * and code block content extraction.
+ * 提供 live preview 需要的通用辅助能力：
+ * - 行内 Markdown 渲染
+ * - 表格、图片、代码块等内容辅助处理
  *
  * @module webview/codemirror/extensions/livePreview/helpers
  */
