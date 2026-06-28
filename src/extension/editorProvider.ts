@@ -368,6 +368,27 @@ export class FlowMdEditorProvider implements vscode.CustomTextEditorProvider {
                 vscode.Uri.file(documentDir),
             ],
         };
+        Logger.info(
+            `Webview options configured: enableScripts=true, documentDir=${documentDir}, extensionDist=${vscode.Uri.joinPath(this.context.extensionUri, 'dist').toString()}`
+        );
+        // Webview 脚本探针用于确认 dist/webview.js 是否真实存在，以及转换后的 URI 是否符合 CSP。
+        const webviewScriptDiskUri = vscode.Uri.joinPath(
+            this.context.extensionUri,
+            'dist',
+            'webview.js'
+        );
+        const webviewScriptUri = webviewPanel.webview.asWebviewUri(webviewScriptDiskUri);
+        try {
+            const webviewScriptStat = await vscode.workspace.fs.stat(webviewScriptDiskUri);
+            Logger.info(
+                `Webview script probe: exists=true, size=${webviewScriptStat.size}, diskUri=${webviewScriptDiskUri.toString()}, fsPath=${webviewScriptDiskUri.fsPath}, webviewUri=${webviewScriptUri.toString()}, cspSource=${webviewPanel.webview.cspSource}`
+            );
+        } catch (error) {
+            Logger.error(
+                `Webview script probe failed: diskUri=${webviewScriptDiskUri.toString()}, fsPath=${webviewScriptDiskUri.fsPath}, webviewUri=${webviewScriptUri.toString()}, cspSource=${webviewPanel.webview.cspSource}`,
+                error instanceof Error ? error : new Error(String(error))
+            );
+        }
 
         // =================================================================
         // State Management
@@ -377,15 +398,68 @@ export class FlowMdEditorProvider implements vscode.CustomTextEditorProvider {
         let isWebviewUpdating = false;
         // Track last content received from webview to prevent sync loops
         let lastWebviewContent: string | null = null;
+        // READY 超时计时器用于定位 Webview 脚本未运行或 READY 消息丢失导致的黑屏。
+        let readyTimeout: ReturnType<typeof setTimeout> | undefined;
+
+        // =================================================================
+        // Webview Message Handler
+        // =================================================================
+        Logger.info(
+            `Registering Webview message listener before HTML injection: ${document.uri.fsPath}`
+        );
+        const messageSubscription = webviewPanel.webview.onDidReceiveMessage(
+            async (message: WebviewToExtensionMessage) => {
+                Logger.info(
+                    `Webview message received before dispatch: type=${message.type}, file=${path.basename(document.uri.fsPath)}`
+                );
+                try {
+                    await this.handleWebviewMessage(message, document, webviewPanel, {
+                        isExtensionUpdating: () => isExtensionUpdating,
+                        setWebviewUpdating: (value: boolean) => {
+                            isWebviewUpdating = value;
+                        },
+                        setWebviewReady: (value: boolean) => {
+                            isWebviewReady = value;
+                            if (value && readyTimeout) {
+                                clearTimeout(readyTimeout);
+                                readyTimeout = undefined;
+                                Logger.info(`READY timeout cleared: ${document.uri.fsPath}`);
+                            }
+                        },
+                        setLastWebviewContent: (content: string) => {
+                            lastWebviewContent = content;
+                        },
+                    });
+                } catch (error) {
+                    Logger.error(
+                        `Webview message handling failed: type=${message.type}, file=${document.uri.fsPath}`,
+                        error instanceof Error ? error : new Error(String(error))
+                    );
+                }
+            }
+        );
+        Logger.info(`Webview message listener registered: ${document.uri.fsPath}`);
 
         // =================================================================
         // Webview HTML Setup
         // =================================================================
-        webviewPanel.webview.html = getHtmlForWebview(
+        const webviewHtml = getHtmlForWebview(
             webviewPanel.webview,
             this.context.extensionUri,
             getSavedOutlinePanelWidth(this.context)
         );
+        readyTimeout = setTimeout(() => {
+            if (!isWebviewReady) {
+                Logger.error(
+                    `Webview READY timeout: no READY received within 3000ms after HTML injection. file=${document.uri.fsPath}, htmlLength=${webviewHtml.length}`
+                );
+            }
+        }, 3000);
+        Logger.info(
+            `Injecting Webview HTML: file=${document.uri.fsPath}, htmlLength=${webviewHtml.length}`
+        );
+        webviewPanel.webview.html = webviewHtml;
+        Logger.info(`Webview HTML injected: ${document.uri.fsPath}`);
 
         // =================================================================
         // TextDocument Change Listener
@@ -492,26 +566,6 @@ export class FlowMdEditorProvider implements vscode.CustomTextEditorProvider {
         );
 
         // =================================================================
-        // Webview Message Handler
-        // =================================================================
-        const messageSubscription = webviewPanel.webview.onDidReceiveMessage(
-            async (message: WebviewToExtensionMessage) => {
-                await this.handleWebviewMessage(message, document, webviewPanel, {
-                    isExtensionUpdating: () => isExtensionUpdating,
-                    setWebviewUpdating: (value: boolean) => {
-                        isWebviewUpdating = value;
-                    },
-                    setWebviewReady: (value: boolean) => {
-                        isWebviewReady = value;
-                    },
-                    setLastWebviewContent: (content: string) => {
-                        lastWebviewContent = content;
-                    },
-                });
-            }
-        );
-
-        // =================================================================
         // Panel Tracking for Editor Mode
         // =================================================================
         const docUriStr = document.uri.toString();
@@ -579,6 +633,10 @@ export class FlowMdEditorProvider implements vscode.CustomTextEditorProvider {
         // =================================================================
         webviewPanel.onDidDispose(() => {
             Logger.info(`Webview disposed for: ${document.uri.fsPath}`);
+            if (readyTimeout) {
+                clearTimeout(readyTimeout);
+                readyTimeout = undefined;
+            }
             changeDocumentSubscription.dispose();
             messageSubscription.dispose();
             configChangeSubscription.dispose();
@@ -637,7 +695,7 @@ export class FlowMdEditorProvider implements vscode.CustomTextEditorProvider {
                     .toString();
                 const outlineWidth = getSavedOutlinePanelWidth(this.context);
 
-                await webviewPanel.webview.postMessage({
+                const initDelivered = await webviewPanel.webview.postMessage({
                     type: MESSAGE_TYPES.INIT,
                     content: initContent,
                     theme: getThemeType(),
@@ -647,8 +705,8 @@ export class FlowMdEditorProvider implements vscode.CustomTextEditorProvider {
                     mode: ConfigManager.getDefaultMode(),
                     outlineWidth,
                 });
-                Logger.debug(
-                    `INIT message sent successfully (mode=${ConfigManager.getDefaultMode()})`
+                Logger.info(
+                    `INIT postMessage completed: delivered=${initDelivered}, mode=${ConfigManager.getDefaultMode()}, documentBaseUri=${docDirWebviewUri}`
                 );
                 break;
             }
@@ -698,7 +756,10 @@ export class FlowMdEditorProvider implements vscode.CustomTextEditorProvider {
 
             case 'fontScaleChange' as typeof MESSAGE_TYPES.READY: {
                 const scaleMsg = message as FontScaleChangeMessage;
-                const clampedScale = Math.min(2, Math.max(0.5, Math.round(scaleMsg.fontScale * 100) / 100));
+                const clampedScale = Math.min(
+                    2,
+                    Math.max(0.5, Math.round(scaleMsg.fontScale * 100) / 100)
+                );
                 await vscode.workspace
                     .getConfiguration('flowMd')
                     .update('fontScale', clampedScale, vscode.ConfigurationTarget.Global);
@@ -763,10 +824,16 @@ export class FlowMdEditorProvider implements vscode.CustomTextEditorProvider {
                 break;
             }
 
-            // Handle webview log messages (always log, not gated by debug setting)
+            // Handle webview log messages.
             case 'webviewLog' as typeof MESSAGE_TYPES.READY: {
                 const logMsg = message as unknown as { level: string; msg: string };
-                Logger.info(`[Webview] [${logMsg.level}] ${logMsg.msg}`);
+                if (logMsg.level === 'ERROR') {
+                    Logger.error(`[Webview] ${logMsg.msg}`);
+                } else if (logMsg.level === 'WARN') {
+                    Logger.warn(`[Webview] ${logMsg.msg}`);
+                } else {
+                    Logger.debug(`[Webview] [${logMsg.level}] ${logMsg.msg}`);
+                }
                 break;
             }
 

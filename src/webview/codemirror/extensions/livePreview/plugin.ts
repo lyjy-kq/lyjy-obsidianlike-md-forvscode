@@ -28,6 +28,7 @@ import {
 import {
     extractFencedCodeContent,
     extractFencedCodeLanguage,
+    extractSafeFontStyles,
     createCodeBlockIndentStyle,
     getCodeBlockIndentLevel,
     parseFrontmatter,
@@ -59,6 +60,7 @@ import {
     HorizontalRuleWidget,
     ImageWidget,
     InlineMathWidget,
+    FontTextWidget,
     MermaidWidget,
     TableWidget,
 } from './widgets.js';
@@ -411,6 +413,114 @@ function collectMathDecorations(
                 Decoration.replace({
                     widget: new InlineMathWidget(tex),
                 }).range(mathFrom, mathTo)
+            );
+        }
+    }
+}
+
+/**
+ * 收集标题中的 `<font>` 装饰。
+ *
+ * 这里只恢复标题级场景，避免把正文段落里的 `<font>` 行为一并放开。
+ *
+ * @param state - 当前编辑器状态。
+ * @param decos - 待追加的装饰数组。
+ * @param focusedRange - 当前聚焦的源码区间。
+ * @param tree - 当前语法树。
+ * @returns void
+ */
+function collectHeadingFontDecorations(
+    state: EditorState,
+    decos: Array<ReturnType<Decoration['range']>>,
+    focusedRange: ILineRange,
+    tree: Tree
+): void {
+    /**
+     * 判断指定位置是否落在需要保护的源码区域内。
+     *
+     * 这里会屏蔽行内代码、代码块、表格等区域，避免把 `<font>` widget 错误地
+     * 嵌入到源码示例或结构化内容里。
+     *
+     * @param pos - 需要检测的文档位置。
+     * @returns 是否位于保护区域。
+     */
+    const isInsideProtectedNode = (pos: number): boolean => {
+        let node = tree.resolveInner(pos, 1);
+        while (node) {
+            const name = node.type.name;
+            if (
+                name === 'InlineCode' ||
+                name === 'CodeMark' ||
+                name === 'FencedCode' ||
+                name === 'CodeText' ||
+                name === 'CodeBlock' ||
+                name === 'CodeInfo' ||
+                name === 'Table' ||
+                name.startsWith('Table')
+            ) {
+                return true;
+            }
+            if (!node.parent || node.parent === node) {
+                break;
+            }
+            node = node.parent;
+        }
+
+        return false;
+    };
+
+    /**
+     * 判断当前行是否属于标题行。
+     *
+     * 兼容 ATX 标题与 Setext 标题，确保 `test2.md` 里的标题写法都能进入渲染分支。
+     *
+     * @param lineText - 当前行文本。
+     * @param nextLineText - 下一行文本，用于判断 Setext 标题。
+     * @returns 是否为标题行。
+     */
+    const isHeadingLine = (lineText: string, nextLineText: string | undefined): boolean => {
+        if (/^\s{0,3}(#{1,6})\s+.+$/.test(lineText)) {
+            return true;
+        }
+
+        if (!nextLineText) {
+            return false;
+        }
+
+        return /^\s*=+\s*$/.test(nextLineText) || /^\s*-+\s*$/.test(nextLineText);
+    };
+
+    const fontRegex = /<font\b([^>]*)>([\s\S]*?)<\/font>/gi;
+
+    for (let ln = 1; ln <= state.doc.lines; ln++) {
+        const line = state.doc.line(ln);
+        const nextLineText = ln < state.doc.lines ? state.doc.line(ln + 1).text : undefined;
+
+        if (line.from < focusedRange.to && line.to > focusedRange.from) {
+            continue;
+        }
+
+        const lineText = line.text;
+        if (!lineText.includes('<font')) continue;
+        if (!isHeadingLine(lineText, nextLineText)) continue;
+        if (isInsideProtectedNode(line.from)) continue;
+
+        fontRegex.lastIndex = 0;
+        let match: RegExpExecArray | null;
+        while ((match = fontRegex.exec(lineText)) !== null) {
+            const innerText = match[2];
+            if (!innerText.trim()) continue;
+
+            const fontFrom = line.from + match.index;
+            const fontTo = fontFrom + match[0].length;
+            if (fontFrom < focusedRange.to && fontTo > focusedRange.from) continue;
+            if (isInsideProtectedNode(fontFrom)) continue;
+
+            const styles = extractSafeFontStyles(match[1]);
+            decos.push(
+                Decoration.replace({
+                    widget: new FontTextWidget(styles, innerText),
+                }).range(fontFrom, fontTo)
             );
         }
     }
@@ -1144,6 +1254,7 @@ function buildDecorations(state: EditorState): DecorationSet {
     collectFootnoteDecorations(state, decos, focusedRange);
     collectDetailsDecorations(state, decos, focusedRange);
     collectMathDecorations(state, decos, focusedRange, tree);
+    collectHeadingFontDecorations(state, decos, focusedRange, tree);
     collectCheckboxDecorations(state, decos, focusedRange, tree, taskMarkerPositions);
     collectImageDecorations(state, decos, focusedRange, tree);
 

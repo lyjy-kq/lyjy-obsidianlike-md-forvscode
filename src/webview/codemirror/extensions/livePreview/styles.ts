@@ -201,11 +201,16 @@ export function createBaseThemeStyles(): Extension {
             fontWeight: 'inherit',
             lineHeight: 'inherit',
             color: 'inherit',
-            backgroundColor: '#1e1f20',
+            backgroundColor: 'var(--vscode-textCodeBlock-background, rgba(128,128,128,0.08))',
             borderLeft: '1px solid rgba(255, 255, 255, 0.12)',
             borderRight: '1px solid rgba(255, 255, 255, 0.12)',
             padding: '0 0.9em',
             boxSizing: 'border-box',
+        },
+        '&light .cm-md-codeblock': {
+            backgroundColor: 'var(--vscode-textCodeBlock-background, rgba(0, 0, 0, 0.035))',
+            borderLeft: '1px solid rgba(0, 0, 0, 0.1)',
+            borderRight: '1px solid rgba(0, 0, 0, 0.1)',
         },
         '.cm-md-codeblock-first': {
             borderTop: '1px solid rgba(255, 255, 255, 0.12)',

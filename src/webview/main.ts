@@ -111,8 +111,8 @@ setPostMessage((message: unknown) => vscode.postMessage(message));
 /**
  * Webview 控制台镜像开关。
  *
- * 正式打包场景默认保持关闭，避免把调试信息持续写入 Webview 控制台。
- * 需要调试时，可以在开发构建里临时打开此开关。
+ * 当前为黑屏问题排查阶段，保持开启以便把启动链路写入 FlowMD 输出。
+ * 待启动问题完全稳定后，可再按发布策略评估是否恢复关闭。
  */
 const SHOULD_MIRROR_WEBVIEW_CONSOLE = false;
 
@@ -184,6 +184,18 @@ const debouncedSendContentChange = messageSender.createDebouncedSendContentChang
  * Created when the INIT message is received.
  */
 let editor: CodeMirrorEditor | null = null;
+
+/**
+ * 是否已经收到扩展侧 INIT 消息。
+ * 用于 READY 重试逻辑判断，避免 READY 丢失后 Webview 永久等待内容。
+ */
+let hasReceivedInit = false;
+
+/**
+ * Webview 初始化是否已经执行。
+ * 用于兼容脚本加载较晚时直接初始化，避免 DOMContentLoaded 监听漏触发。
+ */
+let hasInitialized = false;
 
 /**
  * 当前编辑器模式，用于正文右键菜单的禁用态同步。
@@ -311,6 +323,25 @@ function syncOutlineActiveLine(): void {
     }
 }
 
+/**
+ * 判断事件目标是否属于需要自行保留焦点的交互控件。
+ *
+ * @param target - 待检查的事件目标或当前激活元素。
+ * @returns 如果目标属于搜索面板、表单控件或可编辑元素则返回 true。
+ */
+function isInteractiveFocusTarget(target: EventTarget | Element | null): boolean {
+    if (!(target instanceof Element)) {
+        return false;
+    }
+
+    // 搜索面板和原生表单控件需要保留自身焦点，避免被正文编辑器抢走。
+    return Boolean(
+        target.closest(
+            '.cm-search, input, textarea, select, button, [contenteditable="true"], [role="textbox"]'
+        )
+    );
+}
+
 // =============================================================================
 // Logging
 // =============================================================================
@@ -323,11 +354,11 @@ function syncOutlineActiveLine(): void {
  * @returns void
  */
 function sendLog(level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR', msg: string): void {
-    if (level === 'ERROR' || level === 'WARN' || SHOULD_MIRROR_WEBVIEW_CONSOLE) {
+    if (level === 'ERROR' || level === 'WARN') {
         vscode.postMessage({ type: 'webviewLog', level, msg });
     }
 
-    // 正式包默认不把普通信息回写到 Webview 控制台，只保留错误。
+    // 正式包默认不把普通信息回写到 Webview 控制台，只保留错误和必要告警。
     if (level === 'ERROR') {
         console.error(`[FlowMD Webview] ${msg}`);
     } else if (level === 'WARN' && SHOULD_MIRROR_WEBVIEW_CONSOLE) {
@@ -336,6 +367,115 @@ function sendLog(level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR', msg: string): void 
         console.log(`[FlowMD Webview] ${msg}`);
     }
 }
+
+/**
+ * 更新启动状态提示文本。
+ *
+ * @param detail - 展示给用户的启动阶段说明。
+ * @returns void
+ */
+function updateBootStatus(detail: string): void {
+    const bootStatus = document.getElementById('boot-status');
+    if (!bootStatus) {
+        return;
+    }
+
+    const detailEl = bootStatus.querySelector('.boot-status-detail');
+    if (detailEl) {
+        detailEl.textContent = detail;
+    }
+}
+
+/**
+ * 隐藏启动状态提示。
+ *
+ * @returns void
+ */
+function hideBootStatus(): void {
+    document.getElementById('boot-status')?.setAttribute('hidden', 'true');
+}
+
+/**
+ * 注册 Webview 全局异常监听。
+ *
+ * @returns void
+ */
+function registerGlobalErrorDiagnostics(): void {
+    window.addEventListener('error', (event: ErrorEvent) => {
+        const message = event.error instanceof Error ? event.error.message : event.message;
+        const stack = event.error instanceof Error ? event.error.stack : undefined;
+        sendLog(
+            'ERROR',
+            `Global error captured: message=${message}, source=${event.filename}, line=${event.lineno}, column=${event.colno}`
+        );
+        messageSender.sendError(message, stack, 'WEBVIEW_GLOBAL_ERROR');
+    });
+
+    window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
+        const reason = event.reason instanceof Error ? event.reason.message : String(event.reason);
+        const stack = event.reason instanceof Error ? event.reason.stack : undefined;
+        sendLog('ERROR', `Unhandled promise rejection captured: ${reason}`);
+        messageSender.sendError(reason, stack, 'WEBVIEW_UNHANDLED_REJECTION');
+    });
+}
+
+/**
+ * 发送 READY 并记录来源。
+ *
+ * @param source - READY 发送来源，区分首次发送与重试。
+ * @returns void
+ */
+function sendReadyWithDiagnostics(source: string): void {
+    sendLog(
+        'INFO',
+        `Sending READY to extension: source=${source}, hasReceivedInit=${hasReceivedInit}`
+    );
+    messageSender.sendReady();
+}
+
+/**
+ * 在未收到 INIT 时安排 READY 重试。
+ *
+ * @param delayMs - 延迟发送 READY 的毫秒数。
+ * @param attempt - 当前重试序号。
+ * @returns void
+ */
+function scheduleReadyRetry(delayMs: number, attempt: number): void {
+    setTimeout(() => {
+        if (hasReceivedInit) {
+            sendLog('DEBUG', `READY retry skipped because INIT arrived: attempt=${attempt}`);
+            return;
+        }
+
+        sendLog(
+            'WARN',
+            `INIT not received yet, retrying READY: attempt=${attempt}, delayMs=${delayMs}`
+        );
+        updateBootStatus(`Webview 脚本已运行，但还没有收到 INIT，正在第 ${attempt} 次重发 READY。`);
+        sendReadyWithDiagnostics(`retry-${attempt}`);
+    }, delayMs);
+}
+
+/**
+ * 只执行一次 Webview 初始化。
+ *
+ * @param source - 初始化触发来源，用于区分 DOMContentLoaded 或直接启动。
+ * @returns void
+ */
+function runInitializeOnce(source: string): void {
+    if (hasInitialized) {
+        sendLog('DEBUG', `Webview initialize skipped because it already ran: source=${source}`);
+        return;
+    }
+
+    hasInitialized = true;
+    updateBootStatus(`Webview 脚本已运行，初始化来源：${source}，正在等待扩展侧 INIT。`);
+    sendLog('INFO', `Running Webview initialize: source=${source}`);
+    initialize();
+}
+
+registerGlobalErrorDiagnostics();
+sendLog('INFO', 'Webview script loaded and diagnostics registered');
 
 // Expose log function globally for plugins
 (window as unknown as { flowmdLog: typeof sendLog }).flowmdLog = sendLog;
@@ -366,6 +506,8 @@ async function handleInit(
     mode?: 'live' | 'viewer' | 'source',
     outlineWidth?: number
 ): Promise<void> {
+    hasReceivedInit = true;
+    updateBootStatus('已收到 INIT，正在创建 CodeMirror 编辑器。');
     sendLog('INFO', `INIT received: contentLength=${content.length}, theme=${theme}`);
 
     try {
@@ -379,14 +521,20 @@ async function handleInit(
 
         // Get or create the editor container
         const container = getOrCreateEditorHost();
+        sendLog(
+            'INFO',
+            `Editor host prepared: id=${container.id}, childCount=${container.childElementCount}, documentUri=${documentUri}`
+        );
 
         // Destroy existing editor if any
         if (editor) {
+            sendLog('DEBUG', 'Destroying existing CodeMirror editor before INIT rebuild');
             editor.destroy();
             editor = null;
         }
 
         // Create new CodeMirror editor
+        sendLog('INFO', 'Creating CodeMirror editor instance');
         editor = new CodeMirrorEditor(container);
         editor.setFontScaleChangeHandler((fontScale: number) => {
             messageSender.sendFontScaleChange(fontScale);
@@ -394,9 +542,15 @@ async function handleInit(
         editor.onSelectionChange((lineNumber: number) => {
             outlinePanel?.setActiveLine(lineNumber);
         });
+        editor.onViewportLineChange((lineNumber: number) => {
+            outlinePanel?.setActiveLine(lineNumber);
+        });
 
         // Initialize the editor with content
+        sendLog('INFO', `Calling CodeMirrorEditor.create: contentLength=${content.length}`);
         await editor.create(content);
+        sendLog('INFO', 'CodeMirrorEditor.create completed');
+        hideBootStatus();
         currentEditorMode = mode ?? 'live';
         editorContextMenu?.attach(editor.getView()?.contentDOM ?? null);
 
@@ -552,7 +706,10 @@ function handleThemeChange(theme: ThemeType): void {
  * Design Reference: DES-A-002
  */
 function initialize(): void {
-    sendLog('INFO', 'Webview initializing...');
+    sendLog(
+        'INFO',
+        `Webview initializing: readyState=${document.readyState}, hasEditor=${Boolean(document.getElementById('editor'))}`
+    );
 
     // 右侧大纲面板直接复用 HTML 里准备好的壳子，只负责渲染和交互。
     const panelEl = document.getElementById('outline-pane');
@@ -571,6 +728,7 @@ function initialize(): void {
                 editor?.scrollToLine(line);
             },
         });
+        sendLog('INFO', 'Outline panel initialized');
     } else {
         sendLog('ERROR', 'Outline panel DOM is missing, right-side outline is unavailable');
     }
@@ -590,6 +748,9 @@ function initialize(): void {
     window.addEventListener('message', (event: MessageEvent) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const msg = event.data as any;
+        if (msg?.type) {
+            sendLog('DEBUG', `Raw window message received: type=${msg.type}`);
+        }
         if (msg && msg.type === 'init') {
             if (msg.documentBaseUri) {
                 setDocumentBaseUri(msg.documentBaseUri);
@@ -651,7 +812,9 @@ function initialize(): void {
     });
 
     // Register message listener
+    sendLog('INFO', 'Registering WebviewMessageHandler listener');
     messageHandler.setup();
+    sendLog('INFO', 'WebviewMessageHandler listener registered');
 
     // Set up focus listener to restore editor focus when webview receives focus
     // This fixes the issue where clicking on webview from outside (e.g., desktop)
@@ -659,6 +822,10 @@ function initialize(): void {
     //
     window.addEventListener('focus', () => {
         sendLog('DEBUG', 'Window focus event received');
+        if (isInteractiveFocusTarget(document.activeElement)) {
+            sendLog('DEBUG', 'Editor focus restore skipped for interactive element');
+            return;
+        }
         if (editor && editor.isReady()) {
             editor.focus();
             sendLog('DEBUG', 'Editor focus restored');
@@ -670,9 +837,16 @@ function initialize(): void {
         const target = event.target as HTMLElement;
         const editorContainer = document.getElementById('editor');
         if (editorContainer && editorContainer.contains(target)) {
+            if (isInteractiveFocusTarget(target)) {
+                return;
+            }
+
             if (editor && editor.isReady()) {
                 // Small delay to let CodeMirror handle the click first
                 setTimeout(() => {
+                    if (isInteractiveFocusTarget(document.activeElement)) {
+                        return;
+                    }
                     editor?.focus();
                 }, 10);
             }
@@ -788,10 +962,18 @@ function initialize(): void {
     ); // capture phase - fires before CM6 handlers
 
     // Notify Extension that Webview is ready to receive messages
-    messageSender.sendReady();
+    sendReadyWithDiagnostics('initial');
+    scheduleReadyRetry(250, 1);
+    scheduleReadyRetry(1000, 2);
+    scheduleReadyRetry(2500, 3);
 
-    sendLog('INFO', 'READY message sent to extension');
+    sendLog('INFO', 'READY handshake scheduled');
 }
 
 // Register DOMContentLoaded listener
-document.addEventListener('DOMContentLoaded', initialize);
+sendLog('INFO', `Registering DOMContentLoaded listener: readyState=${document.readyState}`);
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => runInitializeOnce('DOMContentLoaded'));
+} else {
+    runInitializeOnce(`readyState-${document.readyState}`);
+}

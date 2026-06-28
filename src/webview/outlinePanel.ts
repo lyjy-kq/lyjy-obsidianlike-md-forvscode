@@ -652,6 +652,7 @@ export class OutlinePanel {
      */
     private normalizeHeadingText(text: string): string {
         return text
+            .replace(/<\/?[a-zA-Z][^>]*>/g, '')
             .replace(/\s+#+\s*$/, '')
             .replace(/\[(.*?)\]\((.*?)\)/g, '$1')
             .replace(/[`*_~]/g, '')
@@ -709,7 +710,12 @@ export class OutlinePanel {
                         : '';
 
                 return `
-                    <div class="outline-item" data-level="${node.level}" style="--outline-accent: ${accent}; --outline-indent: ${(Math.max(0, node.level - 1) * 8)}px;">
+                    <div
+                        class="outline-item"
+                        data-node-id="${this.escapeHtml(node.id)}"
+                        data-level="${node.level}"
+                        style="--outline-accent: ${accent}; --outline-indent: ${(Math.max(0, node.level - 1) * 8)}px;"
+                    >
                         <div
                             class="outline-row"
                             data-outline-action="jump"
@@ -789,6 +795,7 @@ export class OutlinePanel {
             `[data-node-id="${CSS.escape(this.activeNodeId)}"] > .outline-row`
         );
         current?.setAttribute('data-active', 'true');
+        current?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     }
 
     /**

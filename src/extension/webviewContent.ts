@@ -120,6 +120,37 @@ body {
     height: 100%;
 }
 
+#boot-status {
+    position: absolute;
+    left: 24px;
+    top: 24px;
+    right: 24px;
+    z-index: 2;
+    padding: 14px 16px;
+    border: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.28));
+    border-radius: 10px;
+    background: var(--vscode-editor-background, #272b33);
+    color: var(--vscode-editor-foreground, #d4d4d4);
+    line-height: 1.6;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+    pointer-events: none;
+}
+
+#boot-status[hidden] {
+    display: none !important;
+}
+
+.boot-status-title {
+    display: block;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.boot-status-detail {
+    display: block;
+    color: var(--vscode-descriptionForeground, #999);
+}
+
 /* CodeMirror fills the editor container */
 #editor .cm-editor {
     height: 100%;
@@ -176,8 +207,8 @@ body {
     max-width: 480px;
     height: 100%;
     overflow: hidden;
-    background: var(--vscode-sideBar-background, var(--vscode-editor-background, #272b33));
-    color: var(--vscode-sideBar-foreground, var(--vscode-editor-foreground, #d4d4d4));
+    background: var(--vscode-editor-background, #272b33);
+    color: var(--vscode-editor-foreground, #d4d4d4);
     font-family: var(--vscode-editor-font-family, "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
     font-size: var(--vscode-editor-font-size, 14px);
     box-sizing: border-box;
@@ -278,9 +309,9 @@ body {
     min-height: var(--flowmd-line-height, 1.7em);
     padding: 0 6px 0 2px;
     border: 1px solid transparent;
-    border-bottom-color: rgba(128, 128, 128, 0.16);
+    border-bottom-color: rgba(128, 128, 128, 0.1);
     border-radius: 4px;
-    background: color-mix(in srgb, var(--outline-accent, rgba(128, 128, 128, 0.08)) 72%, transparent);
+    background: transparent;
     color: var(--outline-foreground, inherit);
     cursor: pointer;
     text-align: left;
@@ -291,13 +322,13 @@ body {
 }
 
 .outline-row:hover {
-    background: rgba(79, 193, 255, 0.14);
-    border-color: rgba(79, 193, 255, 0.18);
+    background: var(--vscode-list-hoverBackground, rgba(127, 127, 127, 0.1));
+    border-color: rgba(128, 128, 128, 0.14);
 }
 
 .outline-row[data-active="true"] {
-    background: rgba(79, 193, 255, 0.22);
-    border-color: rgba(79, 193, 255, 0.28);
+    background: color-mix(in srgb, var(--outline-accent, rgba(79, 193, 255, 0.5)) 20%, transparent);
+    border-color: color-mix(in srgb, var(--outline-accent, rgba(79, 193, 255, 0.5)) 58%, transparent);
 }
 
 .outline-toggle {
@@ -307,7 +338,7 @@ body {
     border: none;
     border-radius: 4px;
     background: transparent;
-    color: inherit;
+    color: color-mix(in srgb, var(--outline-accent, rgba(128, 128, 128, 0.5)) 54%, var(--vscode-editor-foreground, #d4d4d4));
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -359,7 +390,7 @@ body {
     top: 0;
     bottom: 0;
     width: 1px;
-    background: rgba(127, 127, 127, 0.22);
+    background: color-mix(in srgb, var(--outline-accent, rgba(127, 127, 127, 0.3)) 44%, rgba(127, 127, 127, 0.18));
 }
 
 .outline-toggle:disabled {
@@ -372,7 +403,7 @@ body {
     min-width: 0;
     border: none;
     background: transparent;
-    color: inherit;
+    color: color-mix(in srgb, var(--outline-accent, rgba(128, 128, 128, 0.5)) 58%, var(--vscode-editor-foreground, #d4d4d4));
     cursor: pointer;
     text-align: left;
     white-space: nowrap;
@@ -383,9 +414,14 @@ body {
     line-height: inherit;
 }
 
+.outline-row[data-active="true"] .outline-label {
+    color: color-mix(in srgb, var(--outline-accent, rgba(79, 193, 255, 0.5)) 72%, var(--vscode-editor-foreground, #d4d4d4));
+    font-weight: 600;
+}
+
 .outline-meta {
     flex: 0 0 auto;
-    color: var(--vscode-descriptionForeground, #999);
+    color: color-mix(in srgb, var(--outline-accent, rgba(128, 128, 128, 0.5)) 42%, var(--vscode-editor-foreground, #d4d4d4));
     font-size: 0.85em;
     line-height: inherit;
 }
@@ -426,7 +462,7 @@ body {
     flex: 0 0 28px;
     border: 1px solid rgba(127, 127, 127, 0.24);
     border-radius: 4px;
-    background: rgba(127, 127, 127, 0.12);
+    background: transparent;
     color: inherit;
     font: inherit;
     font-size: 15px;
@@ -440,8 +476,8 @@ body {
 }
 
 .outline-action-btn:hover {
-    background: rgba(79, 193, 255, 0.14);
-    border-color: rgba(79, 193, 255, 0.28);
+    background: var(--vscode-list-hoverBackground, rgba(127, 127, 127, 0.1));
+    border-color: rgba(128, 128, 128, 0.28);
 }
 
 .outline-action-btn:disabled {
@@ -674,6 +710,10 @@ ${styles}
 <body>
     <div id="app-shell">
         <div id="editor-pane">
+            <div id="boot-status">
+                <span class="boot-status-title">FlowMD 正在启动 Webview...</span>
+                <span class="boot-status-detail">如果这里长时间不消失，说明 webview.js 可能没有加载或没有收到 INIT，请查看 FlowMD 输出。</span>
+            </div>
             <div id="editor"></div>
         </div>
         <div id="outline-resizer" role="separator" aria-orientation="vertical" aria-label="Resize outline panel"></div>
@@ -689,4 +729,3 @@ ${styles}
 </body>
 </html>`;
 }
-

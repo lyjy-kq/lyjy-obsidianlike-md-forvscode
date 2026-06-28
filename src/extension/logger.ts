@@ -211,7 +211,9 @@ export class Logger {
      * ```
      */
     static info(message: string): void {
-        this.log(LogLevel.INFO, message);
+        if (ConfigManager.isDebugLogEnabled()) {
+            this.log(LogLevel.INFO, message);
+        }
     }
 
     /**

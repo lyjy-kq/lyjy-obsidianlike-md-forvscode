@@ -11,6 +11,7 @@ import { Transaction } from '@codemirror/state';
 import { EditorView, WidgetType } from '@codemirror/view';
 import {
     applyAlignment,
+    applySafeFontStyles,
     renderInlineMarkdown,
     resolvePreviewImageUrl,
 } from './helpers.js';
@@ -70,6 +71,58 @@ export class BulletWidget extends WidgetType {
 
     eq(): boolean {
         return true;
+    }
+}
+
+/**
+ * 渲染标题中 `<font>` 包裹文本的安全内联 widget。
+ */
+export class FontTextWidget extends WidgetType {
+    /** 经过白名单过滤后的 CSS 声明。 */
+    private readonly styles: Array<[string, string]>;
+    /** `<font>` 标签内的原始文本内容。 */
+    private readonly content: string;
+
+    /**
+     * 创建字体文本 widget。
+     *
+     * @param styles - 解析后的安全 CSS 声明列表。
+     * @param content - `<font>` 标签内的原始文本内容。
+     */
+    constructor(styles: Array<[string, string]>, content: string) {
+        super();
+        this.styles = styles;
+        this.content = content;
+    }
+
+    /**
+     * 比较两个 widget 是否可以复用。
+     *
+     * @param other - 需要比较的另一个 widget。
+     * @returns 两个 widget 是否表示同一段内容。
+     */
+    eq(other: FontTextWidget): boolean {
+        return (
+            this.styles.length === other.styles.length &&
+            this.styles.every(
+                ([property, value], index) =>
+                    property === other.styles[index]?.[0] && value === other.styles[index]?.[1]
+            ) &&
+            this.content === other.content
+        );
+    }
+
+    /**
+     * 生成用于预览的 DOM 节点。
+     *
+     * @returns 渲染后的 span 节点。
+     */
+    toDOM(): HTMLElement {
+        const span = document.createElement('span');
+        span.className = 'cm-md-font-text';
+        applySafeFontStyles(span, this.styles);
+        span.innerHTML = renderInlineMarkdown(this.content);
+        return span;
     }
 }
 

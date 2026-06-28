@@ -74,99 +74,131 @@ import type { FlowMdEditorSettings } from '../../shared/types.js';
 type SelectionLineChangeCallback = (lineNumber: number) => void;
 
 /**
+ * 视口阅读行变化回调。
+ *
+ * @param lineNumber - 当前视口顶部附近的正文行号，从 1 开始。
+ * @returns void
+ */
+type ViewportLineChangeCallback = (lineNumber: number) => void;
+
+/**
+ * 创建延迟加载的代码块语言描述。
+ *
+ * @param options - 语言名称、别名、扩展名与加载函数。
+ * @returns CodeMirror 可识别的语言描述。
+ */
+function createLazyLanguageDescription(options: {
+    /** 语言展示名称。 */
+    name: string;
+    /** 代码块 info 字符串可使用的别名。 */
+    alias?: string[];
+    /** 文件扩展名提示。 */
+    extensions?: string[];
+    /** 真正需要解析该语言时才执行的支持构造函数。 */
+    load: () => LanguageSupport;
+}): LanguageDescription {
+    return LanguageDescription.of({
+        name: options.name,
+        alias: options.alias,
+        extensions: options.extensions,
+        load: async () => options.load(),
+    });
+}
+
+/**
  * Statically-loaded language descriptions for fenced code block syntax highlighting.
  * Uses direct imports instead of @codemirror/language-data's dynamic import()
  * which doesn't work in esbuild IIFE bundles.
  */
 const codeLanguages: readonly LanguageDescription[] = [
-    LanguageDescription.of({
+    createLazyLanguageDescription({
         name: 'JavaScript',
         alias: ['js', 'jsx', 'ecmascript', 'node'],
         extensions: ['js', 'mjs', 'cjs', 'jsx'],
-        support: javascript({ jsx: true }),
+        load: () => javascript({ jsx: true }),
     }),
-    LanguageDescription.of({
+    createLazyLanguageDescription({
         name: 'TypeScript',
         alias: ['ts', 'tsx'],
         extensions: ['ts', 'tsx', 'mts', 'cts'],
-        support: javascript({ typescript: true, jsx: true }),
+        load: () => javascript({ typescript: true, jsx: true }),
     }),
-    LanguageDescription.of({
+    createLazyLanguageDescription({
         name: 'Python',
         alias: ['py'],
         extensions: ['py', 'pyw'],
-        support: python(),
+        load: () => python(),
     }),
-    LanguageDescription.of({
+    createLazyLanguageDescription({
         name: 'HTML',
         alias: ['htm'],
         extensions: ['html', 'htm'],
-        support: html(),
+        load: () => html(),
     }),
-    LanguageDescription.of({ name: 'CSS', extensions: ['css'], support: css() }),
-    LanguageDescription.of({
+    createLazyLanguageDescription({ name: 'CSS', extensions: ['css'], load: () => css() }),
+    createLazyLanguageDescription({
         name: 'JSON',
         alias: ['jsonc'],
         extensions: ['json'],
-        support: json(),
+        load: () => json(),
     }),
-    LanguageDescription.of({ name: 'Java', extensions: ['java'], support: java() }),
-    LanguageDescription.of({
+    createLazyLanguageDescription({ name: 'Java', extensions: ['java'], load: () => java() }),
+    createLazyLanguageDescription({
         name: 'C++',
         alias: ['cpp', 'c', 'cc', 'cxx', 'h', 'hpp'],
         extensions: ['cpp', 'c', 'cc', 'h', 'hpp'],
-        support: cpp(),
+        load: () => cpp(),
     }),
-    LanguageDescription.of({ name: 'Rust', alias: ['rs'], extensions: ['rs'], support: rust() }),
-    LanguageDescription.of({ name: 'Go', alias: ['golang'], extensions: ['go'], support: go() }),
-    LanguageDescription.of({ name: 'SQL', extensions: ['sql'], support: sql() }),
-    LanguageDescription.of({ name: 'PHP', extensions: ['php'], support: php() }),
-    LanguageDescription.of({
+    createLazyLanguageDescription({ name: 'Rust', alias: ['rs'], extensions: ['rs'], load: () => rust() }),
+    createLazyLanguageDescription({ name: 'Go', alias: ['golang'], extensions: ['go'], load: () => go() }),
+    createLazyLanguageDescription({ name: 'SQL', extensions: ['sql'], load: () => sql() }),
+    createLazyLanguageDescription({ name: 'PHP', extensions: ['php'], load: () => php() }),
+    createLazyLanguageDescription({
         name: 'XML',
         alias: ['svg', 'xsl', 'xsd'],
         extensions: ['xml', 'svg', 'xsl'],
-        support: xml(),
+        load: () => xml(),
     }),
-    LanguageDescription.of({
+    createLazyLanguageDescription({
         name: 'YAML',
         alias: ['yml'],
         extensions: ['yaml', 'yml'],
-        support: yaml(),
+        load: () => yaml(),
     }),
-    LanguageDescription.of({
+    createLazyLanguageDescription({
         name: 'Shell',
         alias: ['bash', 'sh', 'zsh', 'ksh'],
         extensions: ['sh', 'bash', 'zsh'],
-        support: new LanguageSupport(StreamLanguage.define(shell)),
+        load: () => new LanguageSupport(StreamLanguage.define(shell)),
     }),
-    LanguageDescription.of({
+    createLazyLanguageDescription({
         name: 'PowerShell',
         alias: ['ps1', 'psm1', 'pwsh'],
         extensions: ['ps1', 'psm1'],
-        support: new LanguageSupport(StreamLanguage.define(powerShell)),
+        load: () => new LanguageSupport(StreamLanguage.define(powerShell)),
     }),
-    LanguageDescription.of({
+    createLazyLanguageDescription({
         name: 'Ruby',
         alias: ['rb'],
         extensions: ['rb'],
-        support: new LanguageSupport(StreamLanguage.define(ruby)),
+        load: () => new LanguageSupport(StreamLanguage.define(ruby)),
     }),
-    LanguageDescription.of({
+    createLazyLanguageDescription({
         name: 'Dockerfile',
         alias: ['docker'],
         extensions: ['dockerfile'],
-        support: new LanguageSupport(StreamLanguage.define(dockerFile)),
+        load: () => new LanguageSupport(StreamLanguage.define(dockerFile)),
     }),
-    LanguageDescription.of({
+    createLazyLanguageDescription({
         name: 'TOML',
         extensions: ['toml'],
-        support: new LanguageSupport(StreamLanguage.define(toml)),
+        load: () => new LanguageSupport(StreamLanguage.define(toml)),
     }),
-    LanguageDescription.of({
+    createLazyLanguageDescription({
         name: 'Diff',
         alias: ['patch'],
         extensions: ['diff', 'patch'],
-        support: new LanguageSupport(StreamLanguage.define(diff)),
+        load: () => new LanguageSupport(StreamLanguage.define(diff)),
     }),
 ];
 
@@ -233,6 +265,15 @@ export class CodeMirrorEditor {
 
     /** Callback for active line changes. */
     private onSelectionChangeCallback: SelectionLineChangeCallback | undefined;
+
+    /** 视口阅读行变化回调，用于正文滚动驱动外部大纲关注点。 */
+    private onViewportLineChangeCallback: ViewportLineChangeCallback | undefined;
+
+    /** 视口行上报的动画帧编号，用于合并连续滚动事件。 */
+    private viewportLineFrame: number | null = null;
+
+    /** 最近一次已经上报的视口行号，用于避免重复通知。 */
+    private lastReportedViewportLine: number | null = null;
 
     /** Flag to suppress onChange during programmatic updates */
     private suppressOnChange: boolean = false;
@@ -311,6 +352,48 @@ export class CodeMirrorEditor {
     }
 
     /**
+     * 安排在下一帧上报当前视口顶部正文行。
+     *
+     * @param view - 当前 CodeMirror 编辑器视图。
+     * @returns void
+     */
+    private scheduleViewportLineReport(view: EditorView): void {
+        if (!this.onViewportLineChangeCallback) {
+            return;
+        }
+
+        if (this.viewportLineFrame !== null) {
+            return;
+        }
+
+        this.viewportLineFrame = window.requestAnimationFrame(() => {
+            this.viewportLineFrame = null;
+            this.reportViewportLine(view);
+        });
+    }
+
+    /**
+     * 计算并上报当前视口顶部附近的正文行。
+     *
+     * @param view - 当前 CodeMirror 编辑器视图。
+     * @returns void
+     */
+    private reportViewportLine(view: EditorView): void {
+        if (!this.onViewportLineChangeCallback) {
+            return;
+        }
+
+        const block = view.lineBlockAtHeight(view.scrollDOM.scrollTop);
+        const lineNumber = view.state.doc.lineAt(block.from).number;
+        if (lineNumber === this.lastReportedViewportLine) {
+            return;
+        }
+
+        this.lastReportedViewportLine = lineNumber;
+        this.onViewportLineChangeCallback(lineNumber);
+    }
+
+    /**
      * Creates and initializes the CodeMirror EditorView.
      *
      * Sets up the editor with Markdown language support, history (undo/redo),
@@ -364,6 +447,10 @@ export class CodeMirrorEditor {
                         view.scrollDOM.scrollTop += event.deltaY * 5;
                         return true;
                     }
+                    return false;
+                },
+                scroll: (_event: Event, view: EditorView) => {
+                    this.scheduleViewportLineReport(view);
                     return false;
                 },
                 // Focus support for Viewer Mode (editable: false)
@@ -463,6 +550,10 @@ export class CodeMirrorEditor {
                     const activeLine = update.state.doc.lineAt(update.state.selection.main.head).number;
                     this.onSelectionChangeCallback(activeLine);
                 }
+
+                if (update.docChanged || update.viewportChanged) {
+                    this.scheduleViewportLineReport(update.view);
+                }
             }),
 
             // IME composition end handler
@@ -502,6 +593,7 @@ export class CodeMirrorEditor {
 
         // 初始化字号缩放变量，确保编辑器正文从默认倍率开始渲染。
         this.applyFontScale();
+        this.reportViewportLine(this.view);
 
         return Promise.resolve();
     }
@@ -513,13 +605,19 @@ export class CodeMirrorEditor {
      */
     destroy(): void {
         if (this.view) {
+            if (this.viewportLineFrame !== null) {
+                window.cancelAnimationFrame(this.viewportLineFrame);
+                this.viewportLineFrame = null;
+            }
             this.view.destroy();
             this.view = null;
         }
         this.onChangeCallback = undefined;
+        this.onViewportLineChangeCallback = undefined;
         this.pasteHandler = null;
         this.fontScaleChangeHandler = null;
         this.suppressOnChange = false;
+        this.lastReportedViewportLine = null;
     }
 
     /**
@@ -642,6 +740,21 @@ export class CodeMirrorEditor {
      */
     onSelectionChange(callback: SelectionLineChangeCallback): void {
         this.onSelectionChangeCallback = callback;
+    }
+
+    /**
+     * 注册正文视口阅读行变化回调。
+     *
+     * 滚动正文时会以上方可见行作为阅读位置，用于同步右侧大纲关注点。
+     *
+     * @param callback - 接收当前视口行号的回调函数。
+     * @returns void
+     */
+    onViewportLineChange(callback: ViewportLineChangeCallback): void {
+        this.onViewportLineChangeCallback = callback;
+        if (this.view) {
+            this.reportViewportLine(this.view);
+        }
     }
 
     /**

@@ -122,6 +122,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  */
 function normalizeHeadingText(text: string): string {
     return text
+        .replace(/<\/?[a-zA-Z][^>]*>/g, '')
         .replace(/\s+#+\s*$/, '')
         .replace(/\[(.*?)\]\((.*?)\)/g, '$1')
         .replace(/[`*_~]/g, '')

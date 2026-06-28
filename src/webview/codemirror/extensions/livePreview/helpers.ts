@@ -3,6 +3,7 @@
  *
  * 提供 live preview 需要的通用辅助能力：
  * - 行内 Markdown 渲染
+ * - 标题 `<font>` 安全样式解析
  * - 表格、图片、代码块等内容辅助处理
  *
  * @module webview/codemirror/extensions/livePreview/helpers
@@ -57,6 +58,162 @@ export function renderInlineMarkdown(text: string): string {
     html = html.replace(/`(.+?)`/g, '<code class="cm-md-code">$1</code>');
     html = html.replace(/\[(.+?)\]\((.+?)\)/g, '<a class="cm-md-link">$1</a>');
     return html;
+}
+
+/**
+ * `<font>` 允许映射到 DOM 的安全 CSS 属性白名单。
+ */
+const SAFE_FONT_STYLE_PROPERTIES = new Set([
+    'color',
+    'background-color',
+    'font-weight',
+    'font-style',
+    'text-decoration',
+    'text-decoration-color',
+    'font-size',
+    'font-family',
+]);
+
+/**
+ * 判断 font-family 回退校验中的字符是否安全。
+ *
+ * @param char - 待检查的单个字符。
+ * @returns 字符属于字体族名称常见安全字符时返回 true。
+ */
+function isSafeFontFamilyFallbackChar(char: string): boolean {
+    return (
+        /[\w\s]/.test(char) ||
+        char === ',' ||
+        char === "'" ||
+        char === '"' ||
+        char === '’' ||
+        char === '\\' ||
+        char === '-'
+    );
+}
+
+/**
+ * 判断单个 CSS 值是否可以安全写入元素样式。
+ *
+ * 这里先排除 `url()`、`expression()` 以及 `javascript:` 这类高风险片段，
+ * 再交给浏览器的 CSS 解析器做二次校验；如果当前环境不支持 `CSS.supports`，
+ * 则回退到保守的字符串规则校验。
+ *
+ * @param property - CSS 属性名，要求使用连字符格式
+ * @param value - 待写入的 CSS 值
+ * @returns 是否允许写入 DOM
+ */
+function isSafeCssValue(property: string, value: string): boolean {
+    const normalizedValue = value.trim();
+    if (!normalizedValue) {
+        return false;
+    }
+
+    if (/url\s*\(|expression\s*\(|javascript:/i.test(normalizedValue)) {
+        return false;
+    }
+
+    if (typeof CSS !== 'undefined' && typeof CSS.supports === 'function') {
+        try {
+            if (CSS.supports(property, normalizedValue)) {
+                return true;
+            }
+        } catch {
+            // 继续走保守回退分支。
+        }
+    }
+
+    switch (property) {
+        case 'color':
+        case 'background-color':
+        case 'text-decoration-color':
+            return (
+                /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(normalizedValue) ||
+                /^rgba?\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+(?:\s*,\s*[\d.]+)?\s*\)$/i.test(
+                    normalizedValue
+                ) ||
+                /^hsla?\(\s*[\d.]+\s*,\s*[\d.]+%\s*,\s*[\d.]+%(?:\s*,\s*[\d.]+)?\s*\)$/i.test(
+                    normalizedValue
+                ) ||
+                /^(?:inherit|initial|unset|revert|currentColor|transparent)$/i.test(
+                    normalizedValue
+                ) ||
+                /^[a-z][a-z0-9-]*$/i.test(normalizedValue)
+            );
+        case 'font-weight':
+            return /^(?:normal|bold|bolder|lighter|[1-9]00)$/i.test(normalizedValue);
+        case 'font-style':
+            return /^(?:normal|italic|oblique)$/i.test(normalizedValue);
+        case 'text-decoration':
+            return /^(?:none|underline|overline|line-through|underline\s+line-through|line-through\s+underline)$/i.test(
+                normalizedValue
+            );
+        case 'font-size':
+            return (
+                /^(?:xx-small|x-small|small|medium|large|x-large|xx-large|smaller|larger)$/i.test(
+                    normalizedValue
+                ) ||
+                /^-?\d+(?:\.\d+)?(?:px|em|rem|%|pt|pc|vh|vw|vmin|vmax|ch|ex)$/i.test(
+                    normalizedValue
+                )
+            );
+        case 'font-family':
+            return Array.from(normalizedValue).every(isSafeFontFamilyFallbackChar);
+        default:
+            return false;
+    }
+}
+
+/**
+ * 从 `<font>` 开标签里提取可安全写入 DOM 的样式声明。
+ *
+ * @param openTagText - `<font>` 的开标签文本。
+ * @returns 经过过滤后的 CSS 声明数组，供 `style.setProperty()` 使用。
+ */
+export function extractSafeFontStyles(openTagText: string): Array<[string, string]> {
+    const styleMatch = openTagText.match(/\bstyle\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
+    if (!styleMatch) {
+        return [];
+    }
+
+    const rawStyle = styleMatch[1] ?? styleMatch[2] ?? styleMatch[3] ?? '';
+    if (!rawStyle.trim()) {
+        return [];
+    }
+
+    const safeDeclarations: Array<[string, string]> = [];
+    for (const declaration of rawStyle.split(';')) {
+        const colonIndex = declaration.indexOf(':');
+        if (colonIndex <= 0) {
+            continue;
+        }
+
+        const property = declaration.slice(0, colonIndex).trim().toLowerCase();
+        const value = declaration.slice(colonIndex + 1).trim();
+        if (!SAFE_FONT_STYLE_PROPERTIES.has(property)) {
+            continue;
+        }
+        if (!isSafeCssValue(property, value)) {
+            continue;
+        }
+
+        safeDeclarations.push([property, value]);
+    }
+
+    return safeDeclarations;
+}
+
+/**
+ * 将安全样式声明逐条写入元素的 style 属性。
+ *
+ * @param el - 需要设置样式的 DOM 元素。
+ * @param declarations - 经过白名单过滤后的 CSS 声明。
+ * @returns void
+ */
+export function applySafeFontStyles(el: HTMLElement, declarations: Array<[string, string]>): void {
+    for (const [property, value] of declarations) {
+        el.style.setProperty(property, value);
+    }
 }
 
 /**
@@ -321,7 +478,7 @@ export function getCodeBlockIndentLevel(lineText: string): number {
  * @returns 可直接写入 line decoration attributes.style 的样式字符串
  */
 export function createCodeBlockIndentStyle(indentLevel: number): string {
-    const backgroundColor = '#1e1f20';
+    const backgroundColor = 'var(--vscode-textCodeBlock-background, rgba(128,128,128,0.08))';
     const palette = [
         'rgba(235, 131, 131, 0.18)',
         'rgba(174, 154, 203, 0.18)',
