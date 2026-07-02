@@ -2,8 +2,8 @@
     "name": "lyjy-obsidianlike-md",
     "displayName": "Lyjy ObsidianLike MD for VS Code",
     "description": "WYSIWYG Markdown editor for VS Code with Obsidian-style live preview. Tables, Mermaid diagrams, KaTeX math, code block syntax highlighting, and full IME support.",
-    "version": "0.3.11",
-    "publisher": "lyjy-kq",
+    "version": "0.7.0",
+    "publisher": "lyjy",
     "license": "SEE LICENSE IN LICENSE",
     "repository": {
         "type": "git",
@@ -254,7 +254,7 @@
         "lint": "eslint src --ext ts",
         "test": "node ./out/test/runTest.js",
         "typecheck": "tsc --noEmit",
-        "package:vsix": "npx @vscode/vsce package --no-dependencies --skip-license -o ./lyjy-obsidianlike-md.vsix"
+        "package:vsix": "node ./scripts/package-vsix.mjs"
     },
     "devDependencies": {
         "@types/mocha": "^10.0.10",

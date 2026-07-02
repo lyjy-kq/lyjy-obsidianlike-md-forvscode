@@ -33,6 +33,8 @@ import type {
     ReadyMessage,
     ErrorMessage,
     ExtensionToWebviewMessage,
+    SearchHistoryChangeMessage,
+    SearchHistoryState,
 } from '../shared/types.js';
 import { MESSAGE_TYPES } from '../shared/messageTypes.js';
 import { debounce } from '../shared/utils.js';
@@ -95,6 +97,7 @@ export interface IWebviewMessageCallbacks {
         content: string,
         theme: ThemeType,
         documentUri: string,
+        searchHistory: SearchHistoryState,
         settings?: FlowMdEditorSettings,
         mode?: 'live' | 'viewer' | 'source',
         outlineWidth?: number
@@ -244,6 +247,21 @@ export class WebviewMessageSender {
     }
 
     /**
+     * 发送搜索/替换历史变更消息到扩展侧。
+     *
+     * @param history - 最新的搜索/替换历史状态。
+     * @returns void
+     */
+    public sendSearchHistoryChange(history: SearchHistoryState): void {
+        const message: SearchHistoryChangeMessage = {
+            type: MESSAGE_TYPES.SEARCH_HISTORY_CHANGE,
+            history,
+        } satisfies SearchHistoryChangeMessage;
+
+        this.vscode.postMessage(message);
+    }
+
+    /**
      * Create a debounced version of sendContentChange.
      *
      * This is useful for reducing message frequency during rapid typing.
@@ -370,6 +388,7 @@ export class WebviewMessageHandler {
         content: string;
         theme: ThemeType;
         documentUri: string;
+        searchHistory: SearchHistoryState;
         settings?: FlowMdEditorSettings;
         mode?: 'live' | 'viewer' | 'source';
         outlineWidth?: number;
@@ -379,6 +398,7 @@ export class WebviewMessageHandler {
             message.content,
             message.theme,
             message.documentUri,
+            message.searchHistory,
             message.settings,
             message.mode,
             message.outlineWidth ?? message.outlinePanelWidth

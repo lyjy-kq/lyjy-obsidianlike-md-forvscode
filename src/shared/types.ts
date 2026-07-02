@@ -5,6 +5,8 @@
  * 以及一些通用状态定义，避免各个模块各自维护一份不一致的契约。
  */
 
+import type { SearchHistoryState } from './searchHistory.js';
+
 // =============================================================================
 // 基础消息
 // =============================================================================
@@ -62,6 +64,8 @@ export interface InitMessage extends BaseMessage {
     outlineWidth?: number;
     /** 兼容旧版本字段名。 */
     outlinePanelWidth?: number;
+    /** 搜索/替换历史状态。 */
+    searchHistory: SearchHistoryState;
 }
 
 /**
@@ -163,12 +167,23 @@ export interface ErrorMessage extends BaseMessage {
 }
 
 /**
+ * 搜索/替换历史变更消息。
+ */
+export interface SearchHistoryChangeMessage extends BaseMessage {
+    /** 消息类型。 */
+    type: 'searchHistoryChange';
+    /** 最新的搜索/替换历史状态。 */
+    history: SearchHistoryState;
+}
+
+/**
  * Webview -> 扩展 的消息联合类型。
  */
 export type WebviewToExtensionMessage =
     | ContentChangeMessage
     | ReadyMessage
     | ErrorMessage
+    | SearchHistoryChangeMessage
     | OutlineWidthChangeMessage
     | FontScaleChangeMessage
     | EditorActionMessage

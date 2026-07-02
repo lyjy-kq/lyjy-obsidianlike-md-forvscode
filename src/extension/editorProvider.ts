@@ -26,6 +26,7 @@ import type {
     OutlineWidthChangeMessage,
     FontScaleChangeMessage,
     EditorActionMessage,
+    SearchHistoryChangeMessage,
     WebviewToExtensionMessage,
     ThemeType,
 } from '../shared/types.js';
@@ -38,6 +39,7 @@ import { exportMarkdownAsHtml } from './htmlExporter.js';
 import { handleSaveImage } from './imageSaveHandler.js';
 import { downloadRemoteImagesToAssets } from './remoteImageDownloadHandler.js';
 import { resolveFileLinkTarget } from './fileLinkResolver.js';
+import { getSavedSearchHistory, saveSearchHistory } from './searchHistoryStore.js';
 
 // =============================================================================
 // Constants
@@ -474,6 +476,12 @@ export class FlowMdEditorProvider implements vscode.CustomTextEditorProvider {
             this.context.extensionUri,
             getSavedOutlinePanelWidth(this.context)
         );
+        // 先让当前调用栈和 VS Code 的 webview 初始化流程完成一轮，
+        // 再注入 HTML，尽量规避某些平台在“文档仍处于无效状态”时注册
+        // service worker 失败的问题。
+        await new Promise<void>((resolve) => {
+            setTimeout(resolve, 0);
+        });
         readyTimeout = setTimeout(() => {
             if (!isWebviewReady) {
                 Logger.error(
@@ -720,6 +728,7 @@ export class FlowMdEditorProvider implements vscode.CustomTextEditorProvider {
                     .asWebviewUri(vscode.Uri.file(docDir))
                     .toString();
                 const outlineWidth = getSavedOutlinePanelWidth(this.context);
+                const searchHistory = getSavedSearchHistory(this.context);
 
                 const initDelivered = await webviewPanel.webview.postMessage({
                     type: MESSAGE_TYPES.INIT,
@@ -727,6 +736,7 @@ export class FlowMdEditorProvider implements vscode.CustomTextEditorProvider {
                     theme: getThemeType(),
                     documentUri: document.uri.toString(),
                     documentBaseUri: docDirWebviewUri,
+                    searchHistory,
                     settings: ConfigManager.getEditorSettings(),
                     mode: ConfigManager.getDefaultMode(),
                     outlineWidth,
@@ -770,6 +780,14 @@ export class FlowMdEditorProvider implements vscode.CustomTextEditorProvider {
                 Logger.error(`Webview error: ${message.message}`, new Error(message.stack));
                 await vscode.window.showErrorMessage(`FlowMD: ${message.message}`);
                 break;
+
+            // 处理来自 Webview 的搜索/替换历史变更消息。
+            case MESSAGE_TYPES.SEARCH_HISTORY_CHANGE as typeof MESSAGE_TYPES.READY: {
+                const historyMsg = message as SearchHistoryChangeMessage;
+                await saveSearchHistory(this.context, historyMsg.history);
+                Logger.debug('Search history saved to workspace state');
+                break;
+            }
 
             // 处理来自 Webview 的大纲面板宽度更新消息。
             case MESSAGE_TYPES.OUTLINE_WIDTH_CHANGE as typeof MESSAGE_TYPES.READY: {

@@ -1,174 +1,134 @@
 /**
- * FlowMD Message Type Constants
+ * FlowMD 消息类型常量定义。
  *
- * This module defines constant values for all message types used in
- * Extension-Webview communication via postMessage.
- *
- * The constants are defined using 'as const' to ensure:
- * 1. Type narrowing in switch statements
- * 2. Immutability at compile time
- * 3. Exact string literal types
+ * 这个文件集中维护扩展与 Webview 之间的消息类型字符串，避免各模块
+ * 分散硬编码导致契约不一致。
  *
  * @module shared/messageTypes
  *
  * Design Reference: DES-API-001
- *
- * Requirements:
- * - REQ-F-003: File loading and CodeMirror display
- * - REQ-F-004: CodeMirror edit content file save
- * - REQ-F-005: Bidirectional sync with VS Code editor
- * - REQ-F-008: Dark/Light theme support
  */
 
 /**
- * Message type constants for Extension-Webview communication.
+ * 消息类型常量集合。
  *
- * These values correspond to the 'type' field of message interfaces
- * defined in types.ts:
- * - INIT -> InitMessage.type = 'init'
- * - UPDATE -> UpdateMessage.type = 'update'
- * - THEME_CHANGE -> ThemeChangeMessage.type = 'themeChange'
- * - CONTENT_CHANGE -> ContentChangeMessage.type = 'contentChange'
- * - READY -> ReadyMessage.type = 'ready'
- * - ERROR -> ErrorMessage.type = 'error'
- *
- * @example
- * ```typescript
- * import { MESSAGE_TYPES } from './messageTypes';
- *
- * // In Extension code
- * webview.postMessage({
- *     type: MESSAGE_TYPES.INIT,
- *     content: documentContent,
- *     theme: 'dark',
- *     documentUri: document.uri.toString()
- * });
- *
- * // In Webview code - handling messages
- * switch (message.type) {
- *     case MESSAGE_TYPES.INIT:
- *         handleInit(message);
- *         break;
- *     case MESSAGE_TYPES.UPDATE:
- *         handleUpdate(message);
- *         break;
- *     case MESSAGE_TYPES.THEME_CHANGE:
- *         handleThemeChange(message);
- *         break;
- * }
- * ```
+ * 每个字段都对应一个可直接用于 postMessage 的消息类型字符串。
  */
 export const MESSAGE_TYPES = {
-    // =========================================================================
-    // Extension -> Webview Message Types
-    // =========================================================================
+    // ========================================================================
+    // Extension -> Webview 消息类型
+    // ========================================================================
 
     /**
-     * Initialization message type.
-     * Sent when the editor starts with document content and initial theme.
+     * 初始化消息类型。
+     * 扩展侧在 Webview 准备完成后发送，用于下发内容、主题和设置。
      */
     INIT: 'init',
 
     /**
-     * Update message type.
-     * Sent when document content changes externally (e.g., from VS Code text editor).
+     * 外部内容更新消息类型。
+     * 当 VS Code 文本编辑器内容变化时发送给 Webview。
      */
     UPDATE: 'update',
 
     /**
-     * Theme change message type.
-     * Sent when VS Code's color theme changes.
+     * 主题切换消息类型。
+     * 当 VS Code 颜色主题变化时发送给 Webview。
      */
     THEME_CHANGE: 'themeChange',
 
-    // =========================================================================
-    // Webview -> Extension Message Types
-    // =========================================================================
+    // ========================================================================
+    // Webview -> Extension 消息类型
+    // ========================================================================
 
     /**
-     * Content change message type.
-     * Sent when user edits content in the CodeMirror editor.
+     * 内容变更消息类型。
+     * Webview 在 Markdown 内容变化后发送给扩展侧。
      */
     CONTENT_CHANGE: 'contentChange',
 
     /**
-     * Ready message type.
-     * Sent when Webview initialization is complete.
+     * Webview 就绪消息类型。
+     * Webview 脚本加载完成后发送给扩展侧，触发 INIT 下发。
      */
     READY: 'ready',
 
     /**
-     * Error message type.
-     * Sent when an error occurs in the Webview.
+     * 错误消息类型。
+     * Webview 出现错误时发送给扩展侧用于展示和日志记录。
      */
     ERROR: 'error',
 
     /**
-     * 大纲面板宽度变更消息类型�?     * Webview 在用户拖动分隔条调整右侧宽度后发送给扩展侧�?     * Payload: { width: number }
+     * 大纲宽度变更消息类型。
+     * Webview 在用户拖动右侧大纲分隔条时发送给扩展侧。
      */
     OUTLINE_WIDTH_CHANGE: 'outlineWidthChange',
 
-    // =========================================================================
-    // Extension -> Webview Message Types (Extended)
-    // =========================================================================
+    /**
+     * 搜索/替换历史变更消息类型。
+     * Webview 在历史列表变化后发送给扩展侧进行持久化。
+     */
+    SEARCH_HISTORY_CHANGE: 'searchHistoryChange',
+
+    // ========================================================================
+    // Extension -> Webview 扩展消息类型
+    // ========================================================================
 
     /**
-     * Editor mode change message type.
-     * Sent when user cycles between live/viewer/source modes.
-     * Payload: { mode: 'live' | 'viewer' | 'source' }
+     * 编辑器模式变更消息类型。
+     * 扩展侧在 live/viewer/source 之间切换后发送给 Webview。
      */
     EDITOR_MODE: 'editorMode',
 
     /**
-     * Settings change message type.
-     * Sent when FlowMD editor settings change (word wrap, readable line length).
-     * Payload: { settings: FlowMdEditorSettings }
+     * 设置变更消息类型。
+     * 扩展侧在编辑器设置变化后发送给 Webview。
      */
     SETTINGS_CHANGE: 'settingsChange',
 
     /**
-     * Execute command message type.
-     * Sent to trigger editor commands (find, replace, etc.) from extension keybindings.
-     * Payload: { command: string }
+     * 命令执行消息类型。
+     * 扩展侧通过该消息触发 Webview 中的命令。
      */
     EXECUTE_COMMAND: 'executeCommand',
 
-    // =========================================================================
-    // Webview -> Extension Message Types (Extended)
-    // =========================================================================
+    // ========================================================================
+    // Webview -> Extension 扩展消息类型
+    // ========================================================================
 
     /**
-     * Reload content message type.
-     * Sent when user clicks the reload button to re-read file from disk.
+     * 重新加载内容消息类型。
+     * Webview 点击重载按钮后发送给扩展侧。
      */
     RELOAD_CONTENT: 'reloadContent',
 
-    // =========================================================================
-    // Image Save Message Types (Phase 03A)
-    // =========================================================================
+    // ========================================================================
+    // 图片保存消息类型
+    // ========================================================================
 
     /**
-     * Save image request message type.
-     * Sent from Webview to Extension when user drops or pastes an image.
+     * 保存图片请求消息类型。
+     * Webview 在拖拽或粘贴图片时发送给扩展侧。
      */
     SAVE_IMAGE: 'saveImage',
 
     /**
-     * Image saved success response message type.
-     * Sent from Extension to Webview after successfully saving an image file.
+     * 图片保存成功消息类型。
+     * 扩展侧保存图片成功后发送回 Webview。
      */
     IMAGE_SAVED: 'imageSaved',
 
     /**
-     * Image save error response message type.
-     * Sent from Extension to Webview when image saving fails.
+     * 图片保存失败消息类型。
+     * 扩展侧保存图片失败后发送回 Webview。
      */
     IMAGE_SAVE_ERROR: 'imageSaveError',
-
 } as const;
 
 /**
- * Type for message type values.
- * This allows type-safe access to MESSAGE_TYPES values.
+ * 消息类型字面量联合类型。
+ *
+ * 通过该类型可以在 switch 分支和消息定义中保持严格的字符串字面量约束。
  */
 export type MessageType = (typeof MESSAGE_TYPES)[keyof typeof MESSAGE_TYPES];
