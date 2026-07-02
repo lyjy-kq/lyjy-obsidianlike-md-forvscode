@@ -1,5 +1,22 @@
-node_modules
-test
-docx
-docs
+# 依赖安装产物，避免提交第三方包。
+node_modules/
+
+# 编译输出目录，避免提交构建产物。
+dist/
+
+# 代码索引与本地辅助数据目录，避免提交本地运行状态。
+.codegraph/
+.superpowers/
+
+# VS Code 本地配置目录，通常属于个人环境。
+.vscode/
+
+# 测试目录在本仓库中用于开发过程，按当前约定不纳入版本控制。
+test/
+
+# 文档和导出产物目录只在发布包中忽略，不作为仓库通用忽略。
+docx/
+docs/
+
+# 打包生成文件。
 *.vsix
