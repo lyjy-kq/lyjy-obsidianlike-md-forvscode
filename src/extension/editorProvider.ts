@@ -19,6 +19,7 @@
  * - REQ-F-009: Large file warning display
  */
 
+import * as fs from 'fs';
 import * as vscode from 'vscode';
 import * as path from 'path';
 import type {
@@ -36,6 +37,7 @@ import { ConfigManager } from './configManager.js';
 import { exportMarkdownAsHtml } from './htmlExporter.js';
 import { handleSaveImage } from './imageSaveHandler.js';
 import { downloadRemoteImagesToAssets } from './remoteImageDownloadHandler.js';
+import { resolveFileLinkTarget } from './fileLinkResolver.js';
 
 // =============================================================================
 // Constants
@@ -79,6 +81,30 @@ function getThemeType(): ThemeType {
         default:
             return 'dark';
     }
+}
+
+/**
+ * 把 1-based 的文件链接范围转换为 VS Code 可用的 Range。
+ *
+ * @param selection - 文件链接解析得到的行列范围
+ * @returns VS Code Range；未提供范围时返回 undefined
+ */
+function createSelectionRange(selection: {
+    startLine: number;
+    startColumn: number;
+    endLine: number;
+    endColumn: number;
+} | null): vscode.Range | undefined {
+    if (!selection) {
+        return undefined;
+    }
+
+    return new vscode.Range(
+        Math.max(0, selection.startLine - 1),
+        Math.max(0, selection.startColumn - 1),
+        Math.max(0, selection.endLine - 1),
+        Math.max(0, selection.endColumn - 1)
+    );
 }
 
 /**
@@ -806,17 +832,23 @@ export class FlowMdEditorProvider implements vscode.CustomTextEditorProvider {
             case 'openFile' as typeof MESSAGE_TYPES.READY: {
                 const fileMsg = message as unknown as { path: string };
                 if (fileMsg.path) {
-                    const docDir = path.dirname(document.uri.fsPath);
-                    // Strip anchor fragment from path (e.g., "file.md#heading" 鈫?"file.md")
-                    const filePath = fileMsg.path.split('#')[0];
-                    const resolvedPath = path.resolve(docDir, filePath);
-                    Logger.info(`Opening file: ${resolvedPath}`);
+                    const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+                    const resolvedTarget = resolveFileLinkTarget(
+                        fileMsg.path,
+                        document.uri.fsPath,
+                        workspaceFolder ? [workspaceFolder.uri.fsPath] : [],
+                        (candidate) => fs.existsSync(candidate)
+                    );
+                    const selection = createSelectionRange(resolvedTarget.selection);
+                    Logger.info(`Opening file: ${resolvedTarget.filePath}`);
                     try {
-                        const fileUri = vscode.Uri.file(resolvedPath);
-                        await vscode.commands.executeCommand('vscode.open', fileUri);
+                        const fileUri = vscode.Uri.file(resolvedTarget.filePath);
+                        await vscode.commands.executeCommand('vscode.open', fileUri, {
+                            selection,
+                        });
                     } catch (err) {
                         Logger.error(
-                            `Failed to open file: ${resolvedPath}`,
+                            `Failed to open file: ${resolvedTarget.filePath}`,
                             err instanceof Error ? err : new Error(String(err))
                         );
                     }

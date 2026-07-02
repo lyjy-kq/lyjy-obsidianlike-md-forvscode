@@ -12,6 +12,7 @@ import { ensureSyntaxTree, syntaxHighlighting, syntaxTree } from '@codemirror/la
 import { type EditorState, type Extension, RangeSet } from '@codemirror/state';
 import { Decoration, type DecorationSet, EditorView } from '@codemirror/view';
 import type { Tree } from '@lezer/common';
+import { findFileLinkAtText, findFileLinkMatches } from '../../../../shared/fileLink.js';
 
 import {
     blockquoteLevelDecos,
@@ -413,6 +414,35 @@ function collectMathDecorations(
                 Decoration.replace({
                     widget: new InlineMathWidget(tex),
                 }).range(mathFrom, mathTo)
+            );
+        }
+    }
+}
+
+/**
+ * 收集普通文本中的文件路径装饰，用于提示可 Ctrl/Cmd+点击跳转。
+ *
+ * @param state - 当前编辑器状态
+ * @param decos - 待写入的装饰数组
+ * @param focusedRange - 当前正在编辑的聚焦区间
+ * @returns void
+ */
+function collectFileLinkDecorations(
+    state: EditorState,
+    decos: Array<ReturnType<Decoration['range']>>,
+    focusedRange: ILineRange
+): void {
+    const fileLinkDeco = Decoration.mark({ class: 'cm-md-file-link' });
+
+    for (let ln = 1; ln <= state.doc.lines; ln++) {
+        const line = state.doc.line(ln);
+        if (line.from < focusedRange.to && line.to > focusedRange.from) {
+            continue;
+        }
+
+        for (const fileLinkMatch of findFileLinkMatches(line.text)) {
+            decos.push(
+                fileLinkDeco.range(line.from + fileLinkMatch.start, line.from + fileLinkMatch.end)
             );
         }
     }
@@ -1257,6 +1287,7 @@ function buildDecorations(state: EditorState): DecorationSet {
     collectHeadingFontDecorations(state, decos, focusedRange, tree);
     collectCheckboxDecorations(state, decos, focusedRange, tree, taskMarkerPositions);
     collectImageDecorations(state, decos, focusedRange, tree);
+    collectFileLinkDecorations(state, decos, focusedRange);
 
     // Remember focused range for next update comparison
     return RangeSet.of(decos, true);
@@ -1371,8 +1402,14 @@ export function createLivePreviewExtension(): Extension[] {
         EditorView.domEventHandlers({
             mousedown(event: MouseEvent, view: EditorView) {
                 const target = event.target;
-                if (!(target instanceof HTMLElement)) return false;
-                const linkEl = target.closest('.cm-md-link');
+                const targetElement =
+                    target instanceof HTMLElement
+                        ? target
+                        : target instanceof Node
+                          ? target.parentElement
+                          : null;
+                if (!targetElement) return false;
+                const linkEl = targetElement.closest('.cm-md-link');
                 if (!linkEl) return false;
                 const href = linkEl.getAttribute('data-href');
                 if (!href) return false;
@@ -1439,6 +1476,63 @@ export function createLivePreviewExtension(): Extension[] {
                 if (vscodeApi) {
                     vscodeApi.postMessage({ type: 'openUrl', url: href });
                 }
+                return true;
+            },
+            /**
+             * 处理普通文本中的文件路径 Ctrl/Cmd+点击跳转。
+             *
+             * 该分支只在未命中现有 Markdown 链接时执行，避免改变既有链接行为。
+             *
+             * @param event - 浏览器鼠标事件
+             * @param view - 当前 CodeMirror 视图
+             * @returns 命中文件路径并已拦截默认行为时返回 true
+             */
+            click(event: MouseEvent, view: EditorView) {
+                const target = event.target;
+                const targetElement =
+                    target instanceof HTMLElement
+                        ? target
+                        : target instanceof Node
+                          ? target.parentElement
+                          : null;
+                if (!targetElement) {
+                    return false;
+                }
+
+                if (targetElement.closest('.cm-md-link')) {
+                    return false;
+                }
+
+                if (!(event.ctrlKey || event.metaKey)) {
+                    return false;
+                }
+
+                const clickPos = view.posAtCoords({
+                    x: event.clientX,
+                    y: event.clientY,
+                });
+                if (clickPos === null) {
+                    return false;
+                }
+
+                const line = view.state.doc.lineAt(clickPos);
+                const fileLinkMatch = findFileLinkAtText(line.text, clickPos - line.from);
+                if (!fileLinkMatch) {
+                    return false;
+                }
+
+                event.preventDefault();
+                event.stopPropagation();
+
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const vscodeApi = (window as any).__vscodeApi;
+                if (vscodeApi) {
+                    vscodeApi.postMessage({
+                        type: 'openFile',
+                        path: fileLinkMatch.rawText,
+                    });
+                }
+
                 return true;
             },
         }),

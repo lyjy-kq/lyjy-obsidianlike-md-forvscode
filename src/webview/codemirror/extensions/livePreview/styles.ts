@@ -102,7 +102,7 @@ export function createBaseThemeStyles(): Extension {
                 'var(--vscode-editor-font-family, "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace)',
             fontSize: 'var(--vscode-editor-font-size, 0.9em)',
             fontWeight: 'var(--flowmd-font-weight, 400)',
-            backgroundColor: '#30353f',
+            backgroundColor: '#f0ece0',
             padding: '2px 6px',
             borderRadius: '4px',
             color: '#f29a9a',
@@ -115,21 +115,21 @@ export function createBaseThemeStyles(): Extension {
         // =================================================================
         // Links
         // =================================================================
-        '.cm-md-link': {
-            color: '#b8f5a2',
+        '.cm-md-link, .cm-md-file-link': {
+            color: '#338122',
             textDecoration: 'underline',
-            textDecorationColor: '#b8f5a2',
+            textDecorationColor: '#338122',
             textDecorationSkipInk: 'auto',
             textUnderlineOffset: '3px',
             cursor: 'pointer',
             transition: 'opacity 0.15s ease',
         },
-        '.cm-md-link:hover': {
+        '.cm-md-link:hover, .cm-md-file-link:hover': {
             opacity: '0.8',
         },
-        '&light .cm-md-link': {
-            color: '#b8f5a2',
-            textDecorationColor: '#b8f5a2',
+        '&light .cm-md-link, &light .cm-md-file-link': {
+            color: '#338122',
+            textDecorationColor: '#338122',
         },
 
         // =================================================================
