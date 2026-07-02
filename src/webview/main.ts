@@ -44,6 +44,7 @@ import { WebviewMessageSender, WebviewMessageHandler } from './messageHandler.js
 import { WebviewThemeManager } from './theme.js';
 import { OutlinePanel } from './outlinePanel.js';
 import { EditorContextMenu, type EditorMode } from './editorContextMenu.js';
+import { createSearchHistoryController, type SearchHistoryController } from './codemirror/extensions/searchHistory.js';
 import {
     setupImageDropHandler,
     createImagePasteHandler,
@@ -51,6 +52,7 @@ import {
     handleImageSaveError,
 } from './imageDropHandler.js';
 import type { ThemeType, FlowMdEditorSettings } from '../shared/types.js';
+import type { SearchHistoryState } from '../shared/searchHistory.js';
 import { MESSAGE_TYPES } from '../shared/messageTypes.js';
 
 // =============================================================================
@@ -184,6 +186,12 @@ const debouncedSendContentChange = messageSender.createDebouncedSendContentChang
  * Created when the INIT message is received.
  */
 let editor: CodeMirrorEditor | null = null;
+
+/**
+ * 搜索/替换历史控制器实例。
+ * 用于给 CodeMirror 搜索面板挂载 datalist 并回传历史变更。
+ */
+let searchHistoryController: SearchHistoryController | null = null;
 
 /**
  * 是否已经收到扩展侧 INIT 消息。
@@ -502,6 +510,7 @@ async function handleInit(
     content: string,
     theme: ThemeType,
     documentUri: string,
+    searchHistory: SearchHistoryState,
     settings?: FlowMdEditorSettings,
     mode?: 'live' | 'viewer' | 'source',
     outlineWidth?: number
@@ -511,6 +520,10 @@ async function handleInit(
     sendLog('INFO', `INIT received: contentLength=${content.length}, theme=${theme}`);
 
     try {
+        // Destroy any stale search history controller before rebuilding the editor.
+        searchHistoryController?.destroy();
+        searchHistoryController = null;
+
         // Store document URI for image path resolution
         currentDocumentUri = documentUri;
 
@@ -550,6 +563,21 @@ async function handleInit(
         sendLog('INFO', `Calling CodeMirrorEditor.create: contentLength=${content.length}`);
         await editor.create(content);
         sendLog('INFO', 'CodeMirrorEditor.create completed');
+
+        // Initialize search/replace history UI and persistence hooks.
+        searchHistoryController?.destroy();
+        const editorView = editor.getView();
+        if (!editorView) {
+            throw new Error('Cannot initialize search history controller: editor view is missing.');
+        }
+        searchHistoryController = createSearchHistoryController(
+            editorView,
+            searchHistory,
+            (history: SearchHistoryState) => {
+                messageSender.sendSearchHistoryChange(history);
+            }
+        );
+
         hideBootStatus();
         currentEditorMode = mode ?? 'live';
         editorContextMenu?.attach(editor.getView()?.contentDOM ?? null);
@@ -801,11 +829,20 @@ function initialize(): void {
             content: string,
             theme: ThemeType,
             documentUri: string,
+            searchHistory: SearchHistoryState,
             settings?: FlowMdEditorSettings,
             mode?: 'live' | 'viewer' | 'source',
             outlineWidth?: number
         ): void => {
-            void handleInit(content, theme, documentUri, settings, mode, outlineWidth);
+            void handleInit(
+                content,
+                theme,
+                documentUri,
+                searchHistory,
+                settings,
+                mode,
+                outlineWidth
+            );
         },
         onUpdate: handleUpdate,
         onThemeChange: handleThemeChange,

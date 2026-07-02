@@ -646,6 +646,8 @@ function attachPanZoom(viewport: HTMLElement, stage: HTMLElement): {
     cleanup: () => void;
     /** 主动放大一次当前内容。 */
     zoomIn: () => void;
+    /** 尝试将当前内容适配到视口尺寸。 */
+    fitToViewport: () => boolean;
 } {
     let scale = 1;
     let translateX = 0;
@@ -685,8 +687,40 @@ function attachPanZoom(viewport: HTMLElement, stage: HTMLElement): {
      */
     function zoomBy(factor: number): void {
         const nextScale = scale * factor;
-        scale = Math.min(6, Math.max(0.2, nextScale));
+        scale = Math.min(15, Math.max(0.2, nextScale));
         applyTransform();
+    }
+
+    /**
+     * 尝试将当前内容按视口尺寸自动适配。
+     *
+     * 适配失败时返回 `false`，调用方可以回退到当前默认方案。
+     *
+     * @returns 是否成功完成适配
+     */
+    function fitToViewport(): boolean {
+        const contentHost = stage.firstElementChild as HTMLElement | null;
+        if (!contentHost) {
+            return false;
+        }
+
+        const viewportWidth = viewport.clientWidth;
+        const viewportHeight = viewport.clientHeight;
+        const contentWidth = contentHost.scrollWidth;
+        const contentHeight = contentHost.scrollHeight;
+
+        if (viewportWidth <= 0 || viewportHeight <= 0 || contentWidth <= 0 || contentHeight <= 0) {
+            return false;
+        }
+
+        const nextScale = Math.min(viewportWidth / contentWidth, viewportHeight / contentHeight);
+        if (!Number.isFinite(nextScale) || nextScale <= 0) {
+            return false;
+        }
+
+        scale = Math.min(15, Math.max(0.2, nextScale));
+        applyTransform();
+        return true;
     }
 
     /**
@@ -776,7 +810,22 @@ function attachPanZoom(viewport: HTMLElement, stage: HTMLElement): {
         zoomIn: () => {
             zoomBy(1.25);
         },
+        fitToViewport,
     };
+}
+
+/**
+ * 在下一帧尝试将预览内容适配到视口。
+ *
+ * 这样可以等待图片解码或 Mermaid SVG 布局完成，再读取实际尺寸。
+ *
+ * @param fitToViewport - 具体的适配动作
+ * @returns void
+ */
+function queuePreviewFit(fitToViewport: () => boolean): void {
+    requestAnimationFrame(() => {
+        fitToViewport();
+    });
 }
 
 /**
@@ -901,16 +950,21 @@ export function openImagePreviewOverlay(options: ImagePreviewOverlayOptions): vo
     if (resolvedUrl) {
         const img = document.createElement('img');
         img.className = 'cm-md-preview-image';
-        img.src = resolvedUrl;
-        img.alt = options.altText || '[image]';
-        img.draggable = false;
         img.addEventListener('load', () => {
             contentHost.classList.add('cm-md-preview-image-loaded');
+            queuePreviewFit(() => panZoom.fitToViewport());
         });
         img.addEventListener('error', () => {
             contentHost.replaceChildren(createPreviewFallback(options.altText || '[image]'));
         });
+        img.src = resolvedUrl;
+        img.alt = options.altText || '[image]';
+        img.draggable = false;
         contentHost.replaceChildren(img);
+
+        if (img.complete && img.naturalWidth > 0) {
+            queuePreviewFit(() => panZoom.fitToViewport());
+        }
     } else {
         contentHost.replaceChildren(createPreviewFallback(options.altText || '[image]'));
     }
@@ -993,6 +1047,7 @@ export function openMermaidPreviewOverlay(options: MermaidPreviewOverlayOptions)
             rendered.className = 'cm-md-preview-mermaid-rendered';
             rendered.innerHTML = svg;
             contentHost.replaceChildren(rendered, actions);
+            queuePreviewFit(() => panZoom.fitToViewport());
         })
         .catch((error) => {
             const message = document.createElement('div');

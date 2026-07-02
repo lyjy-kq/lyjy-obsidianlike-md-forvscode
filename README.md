@@ -1,6 +1,8 @@
 # Lyjy ObsidianLike MD for VS Code
 
 一个面向 VS Code 的 Markdown 编辑器扩展，主打 Obsidian 风格的实时预览、右侧大纲、可拖动分栏和更贴近编辑器的阅读体验。
+## 打包
+npx @vscode/vsce ls --no-dependencies --ignoreFile .vscodeignore
 
 ## 项目仓库
 
