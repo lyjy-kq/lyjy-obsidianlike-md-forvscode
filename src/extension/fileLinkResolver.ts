@@ -2,7 +2,7 @@
  * 扩展侧文件路径解析器。
  *
  * 该模块负责把 webview 传来的原始路径文本解析为最终文件路径，并根据
- * 当前文档目录与 workspace 根目录决定实际要打开的目标文件。
+ * 当前文档目录优先、workspace 根目录回退的顺序决定实际要打开的目标文件。
  */
 
 import * as path from 'path';
@@ -36,17 +36,22 @@ function buildCandidatePaths(
     documentPath: string,
     workspacePaths: string[]
 ): string[] {
-    void documentPath;
-
     if (path.isAbsolute(parsedTarget.filePath)) {
         return [path.normalize(parsedTarget.filePath)];
     }
 
-    if (workspacePaths.length > 0) {
-        return workspacePaths.map((workspacePath) => path.resolve(workspacePath, parsedTarget.filePath));
+    const candidatePaths: string[] = [
+        path.resolve(path.dirname(documentPath), parsedTarget.filePath),
+    ];
+
+    for (const workspacePath of workspacePaths) {
+        const workspaceCandidate = path.resolve(workspacePath, parsedTarget.filePath);
+        if (!candidatePaths.includes(workspaceCandidate)) {
+            candidatePaths.push(workspaceCandidate);
+        }
     }
 
-    return [path.resolve(parsedTarget.filePath)];
+    return candidatePaths;
 }
 
 /**
